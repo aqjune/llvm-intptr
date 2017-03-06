@@ -453,6 +453,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  llvm::legacy::ModuleDumpOutFileName = InputFilename + ".passdump";
+
   // If we are supposed to override the target triple, do so now.
   if (!TargetTriple.empty())
     M->setTargetTriple(Triple::normalize(TargetTriple));

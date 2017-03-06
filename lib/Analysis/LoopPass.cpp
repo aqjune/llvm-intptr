@@ -32,26 +32,32 @@ namespace {
 /// PrintLoopPass - Print a Function corresponding to a Loop.
 ///
 class PrintLoopPassWrapper : public LoopPass {
-  raw_ostream &OS;
-  std::string Banner;
+  //raw_ostream &OS;
+  //std::string Banner;
+  PrintModulePass P;
 
 public:
   static char ID;
-  PrintLoopPassWrapper() : LoopPass(ID), OS(dbgs()) {}
+  PrintLoopPassWrapper() : LoopPass(ID)/*, OS(dbgs())*/ {}
   PrintLoopPassWrapper(raw_ostream &OS, const std::string &Banner)
-      : LoopPass(ID), OS(OS), Banner(Banner) {}
+      : LoopPass(ID), P(OS, Banner) /*OS(OS), Banner(Banner)*/ {}
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesAll();
   }
 
   bool runOnLoop(Loop *L, LPPassManager &) override {
+    ModuleAnalysisManager DummyMAM;
+    P.run(*(L->getHeader()->getParent()->getParent()), DummyMAM,
+          L->getHeader()->getParent());
+    /*
     auto BBI = find_if(L->blocks().begin(), L->blocks().end(),
                        [](BasicBlock *BB) { return BB; });
     if (BBI != L->blocks().end() &&
         isFunctionInPrintList((*BBI)->getParent()->getName())) {
       printLoop(*L, OS, Banner);
     }
+    */
     return false;
   }
 };
