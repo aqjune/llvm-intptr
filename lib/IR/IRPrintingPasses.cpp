@@ -18,6 +18,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 using namespace llvm;
 
 PrintModulePass::PrintModulePass() : OS(dbgs()) {}
@@ -26,8 +27,10 @@ PrintModulePass::PrintModulePass(raw_ostream &OS, const std::string &Banner,
     : OS(OS), Banner(Banner),
       ShouldPreserveUseListOrder(ShouldPreserveUseListOrder) {}
 
-PreservedAnalyses PrintModulePass::run(Module &M, ModuleAnalysisManager &) {
+PreservedAnalyses PrintModulePass::run(Module &M, ModuleAnalysisManager &, const Function *F) {
   OS << Banner;
+  if (F)
+    OS << "Function name : " << F->getName() << "\n";
   if (llvm::isFunctionInPrintList("*"))
     M.print(OS, nullptr, ShouldPreserveUseListOrder);
   else {
@@ -73,18 +76,21 @@ public:
 };
 
 class PrintFunctionPassWrapper : public FunctionPass {
-  PrintFunctionPass P;
+  //PrintFunctionPass P;
+  PrintModulePass P;
 
 public:
   static char ID;
   PrintFunctionPassWrapper() : FunctionPass(ID) {}
   PrintFunctionPassWrapper(raw_ostream &OS, const std::string &Banner)
-      : FunctionPass(ID), P(OS, Banner) {}
+      : FunctionPass(ID), /*P(OS, Banner)*/P(OS, Banner, false) {}
 
   // This pass just prints a banner followed by the function as it's processed.
   bool runOnFunction(Function &F) override {
-    FunctionAnalysisManager DummyFAM;
-    P.run(F, DummyFAM);
+    //FunctionAnalysisManager DummyFAM;
+    //P.run(F, DummyFAM);
+    ModuleAnalysisManager DummyMAM;
+    P.run(*F.getParent(), DummyMAM, &F);
     return false;
   }
 

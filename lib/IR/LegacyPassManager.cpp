@@ -25,6 +25,7 @@
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/Timer.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <map>
@@ -220,6 +221,10 @@ char BBPassManager::ID = 0;
 
 namespace llvm {
 namespace legacy {
+
+std::string ModuleDumpOutFileName;
+raw_ostream *ModuleDumpOutStream;
+
 //===----------------------------------------------------------------------===//
 // FunctionPassManagerImpl
 //
@@ -679,8 +684,10 @@ void PMTopLevelManager::schedulePass(Pass *P) {
   }
 
   if (PI && !PI->isAnalysis() && ShouldPrintBeforePass(PI)) {
-    Pass *PP = P->createPrinterPass(
-        dbgs(), ("*** IR Dump Before " + P->getPassName() + " ***").str());
+    Pass *PP = P->createPrinterPass(*ModuleDumpOutStream,
+      (std::string("*** IR Dump Before ") + P->getPassName() + " ***").str());
+    //Pass *PP = P->createPrinterPass(
+    //    dbgs(), ("*** IR Dump Before " + P->getPassName() + " ***").str());
     PP->assignPassManager(activeStack, getTopLevelPassManagerType());
   }
 
@@ -688,8 +695,18 @@ void PMTopLevelManager::schedulePass(Pass *P) {
   P->assignPassManager(activeStack, getTopLevelPassManagerType());
 
   if (PI && !PI->isAnalysis() && ShouldPrintAfterPass(PI)) {
-    Pass *PP = P->createPrinterPass(
-        dbgs(), ("*** IR Dump After " + P->getPassName() + " ***").str());
+    if (ModuleDumpOutStream == nullptr) {
+      std::error_code EC;
+      raw_fd_ostream *rfo = new raw_fd_ostream(ModuleDumpOutFileName,
+          EC, sys::fs::F_Text);
+      ModuleDumpOutStream = rfo;
+      if (rfo->has_error())
+        errs() << EC.message();
+    }
+    Pass *PP = P->createPrinterPass(*ModuleDumpOutStream,
+      (std::string("*** IR Dump After ") + P->getPassName() + "***").str());
+    //Pass *PP = P->createPrinterPass(
+    //    dbgs(), ("*** IR Dump After " + P->getPassName() + " ***").str());
     PP->assignPassManager(activeStack, getTopLevelPassManagerType());
   }
 }
@@ -1705,6 +1722,7 @@ bool PassManagerImpl::run(Module &M) {
 
 /// Create new pass manager
 PassManager::PassManager() {
+  assert(ModuleDumpOutStream == nullptr);
   PM = new PassManagerImpl();
   // PM is the top level manager
   PM->setTopLevelManager(PM);

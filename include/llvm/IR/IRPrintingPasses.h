@@ -68,7 +68,8 @@ public:
   PrintModulePass(raw_ostream &OS, const std::string &Banner = "",
                   bool ShouldPreserveUseListOrder = false);
 
-  PreservedAnalyses run(Module &M, AnalysisManager<Module> &);
+  PreservedAnalyses run(Module &M, AnalysisManager<Module> &,
+                        const Function *F = nullptr);
 
   static StringRef name() { return "PrintModulePass"; }
 };
