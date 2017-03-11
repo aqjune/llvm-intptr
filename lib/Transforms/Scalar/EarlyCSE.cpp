@@ -266,6 +266,35 @@ public:
   /// that dominated values can succeed in their lookup.
   ScopedHTType AvailableValues;
 
+  // Memory generation is now a pair of integers : one denoting the generation 
+  // of loads, and another denoting the generation of readonly functions.
+  // Note that always Load >= ReadOnlyFunc holds.
+  struct MemoryGeneration {
+    unsigned Load;
+    unsigned ReadOnlyFunc;
+    MemoryGeneration(unsigned Load, unsigned ReadOnlyFunc)
+        : Load(Load), ReadOnlyFunc(ReadOnlyFunc) {}
+    MemoryGeneration() : Load(0), ReadOnlyFunc(0) {}
+    void IncrBoth() {
+      Load++;
+      ReadOnlyFunc++;
+    }
+    void Increment(Instruction *Inst) {
+      ReadOnlyFunc++;
+      CallSite CS(Inst);
+      if (CS) {
+        auto Fn = CS.getCalledFunction();
+        // CallSite can take its functioon in constant expr form.
+        if (Fn && Fn->onlyAccessesInaccessibleMemory()) {
+          // This function call will never clobber any loads
+          // Increment ReadOnlyFunc only
+          return;
+        }
+      }
+      Load++;
+    }
+  };
+
   /// A scoped hash table of the current values of previously encounted memory
   /// locations.
   ///
@@ -282,14 +311,14 @@ public:
   /// the atomicity/volatility if needed.
   struct LoadValue {
     Instruction *DefInst;
-    unsigned Generation;
+    MemoryGeneration Generation;
     int MatchingId;
     bool IsAtomic;
     bool IsInvariant;
     LoadValue()
-        : DefInst(nullptr), Generation(0), MatchingId(-1), IsAtomic(false),
+        : DefInst(nullptr), Generation(), MatchingId(-1), IsAtomic(false),
           IsInvariant(false) {}
-    LoadValue(Instruction *Inst, unsigned Generation, unsigned MatchingId,
+    LoadValue(Instruction *Inst, MemoryGeneration Generation, unsigned MatchingId,
               bool IsAtomic, bool IsInvariant)
         : DefInst(Inst), Generation(Generation), MatchingId(MatchingId),
           IsAtomic(IsAtomic), IsInvariant(IsInvariant) {}
@@ -305,17 +334,17 @@ public:
   /// values.
   ///
   /// It uses the same generation count as loads.
-  typedef ScopedHashTable<CallValue, std::pair<Instruction *, unsigned>>
+  typedef ScopedHashTable<CallValue, std::pair<Instruction *, MemoryGeneration>>
       CallHTType;
   CallHTType AvailableCalls;
 
   /// \brief This is the current generation of the memory value.
-  unsigned CurrentGeneration;
+  MemoryGeneration CurrentGeneration;
 
   /// \brief Set up the EarlyCSE runner for a particular function.
   EarlyCSE(const TargetLibraryInfo &TLI, const TargetTransformInfo &TTI,
            DominatorTree &DT, AssumptionCache &AC, MemorySSA *MSSA)
-      : TLI(TLI), TTI(TTI), DT(DT), AC(AC), MSSA(MSSA), CurrentGeneration(0) {}
+      : TLI(TLI), TTI(TTI), DT(DT), AC(AC), MSSA(MSSA), CurrentGeneration(0, 0) {}
 
   bool run();
 
@@ -346,16 +375,18 @@ private:
   class StackNode {
   public:
     StackNode(ScopedHTType &AvailableValues, LoadHTType &AvailableLoads,
-              CallHTType &AvailableCalls, unsigned cg, DomTreeNode *n,
+              CallHTType &AvailableCalls, MemoryGeneration cg, DomTreeNode *n,
               DomTreeNode::iterator child, DomTreeNode::iterator end)
         : CurrentGeneration(cg), ChildGeneration(cg), Node(n), ChildIter(child),
           EndIter(end), Scopes(AvailableValues, AvailableLoads, AvailableCalls),
           Processed(false) {}
 
     // Accessors.
-    unsigned currentGeneration() { return CurrentGeneration; }
-    unsigned childGeneration() { return ChildGeneration; }
-    void childGeneration(unsigned generation) { ChildGeneration = generation; }
+    const MemoryGeneration &currentGeneration() { return CurrentGeneration; }
+    const MemoryGeneration &childGeneration() { return ChildGeneration; }
+    void childGeneration(const MemoryGeneration &generation) {
+      ChildGeneration = generation;
+    }
     DomTreeNode *node() { return Node; }
     DomTreeNode::iterator childIter() { return ChildIter; }
     DomTreeNode *nextChild() {
@@ -372,8 +403,8 @@ private:
     void operator=(const StackNode &) = delete;
 
     // Members.
-    unsigned CurrentGeneration;
-    unsigned ChildGeneration;
+    MemoryGeneration CurrentGeneration;
+    MemoryGeneration ChildGeneration;
     DomTreeNode *Node;
     DomTreeNode::iterator ChildIter;
     DomTreeNode::iterator EndIter;
@@ -490,7 +521,9 @@ private:
                                                  ExpectedType);
   }
 
-  bool isSameMemGeneration(unsigned EarlierGeneration, unsigned LaterGeneration,
+  bool isSameMemGeneration(const MemoryGeneration &EarlierGeneration,
+                           const MemoryGeneration &LaterGeneration,
+                           bool UseLoadGeneration,
                            Instruction *EarlierInst, Instruction *LaterInst);
 
   void removeMSSA(Instruction *Inst) {
@@ -532,19 +565,6 @@ private:
 };
 }
 
-static bool MayWriteToMemory(Instruction *Inst) {
-  CallSite CS(Inst);
-  if (CS) {
-    auto Fn = CS.getCalledFunction();
-    // CallSite can take its functioon in constant expr form.
-    if (Fn && Fn->onlyAccessesInaccessibleMemory()) {
-      // This function call will never clobber any loads
-      return false;
-    }
-  }
-  return Inst->mayWriteToMemory();
-}
-
 /// Determine if the memory referenced by LaterInst is from the same heap
 /// version as EarlierInst.
 /// This is currently called in two scenarios:
@@ -561,12 +581,15 @@ static bool MayWriteToMemory(Instruction *Inst) {
 ///
 /// in both cases we want to verify that there are no possible writes to the
 /// memory referenced by p between the earlier and later instruction.
-bool EarlyCSE::isSameMemGeneration(unsigned EarlierGeneration,
-                                   unsigned LaterGeneration,
+bool EarlyCSE::isSameMemGeneration(const MemoryGeneration &EarlierGeneration,
+                                   const MemoryGeneration &LaterGeneration,
+                                   bool UseLoadGeneration,
                                    Instruction *EarlierInst,
                                    Instruction *LaterInst) {
   // Check the simple memory generation tracking first.
-  if (EarlierGeneration == LaterGeneration)
+  if ((UseLoadGeneration && (EarlierGeneration.Load == LaterGeneration.Load))
+      || (!UseLoadGeneration &&
+          (EarlierGeneration.ReadOnlyFunc == LaterGeneration.ReadOnlyFunc)))
     return true;
 
   if (!MSSA)
@@ -592,7 +615,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
   // just be conservative and invalidate memory if this block has multiple
   // predecessors.
   if (!BB->getSinglePredecessor())
-    ++CurrentGeneration;
+    CurrentGeneration.IncrBoth();
 
   // If this node has a single predecessor which ends in a conditional branch,
   // we can infer the value of the branch condition given that we took this
@@ -731,7 +754,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       // operation, but we can add this load to our set of available values
       if (MemInst.isVolatile() || !MemInst.isUnordered()) {
         LastStore = nullptr;
-        ++CurrentGeneration;
+        CurrentGeneration.IncrBoth();
       }
 
       // If we have an available version of this load, and if it is the right
@@ -742,26 +765,28 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       // we can assume the current load loads the same value as the dominating
       // load.
       LoadValue InVal = AvailableLoads.lookup(MemInst.getPointerOperand());
-      if (InVal.DefInst != nullptr &&
-          InVal.MatchingId == MemInst.getMatchingId() &&
-          // We don't yet handle removing loads with ordering of any kind.
-          !MemInst.isVolatile() && MemInst.isUnordered() &&
-          // We can't replace an atomic load with one which isn't also atomic.
-          InVal.IsAtomic >= MemInst.isAtomic() &&
-          (InVal.IsInvariant || MemInst.isInvariantLoad() ||
-           isSameMemGeneration(InVal.Generation, CurrentGeneration,
-                               InVal.DefInst, Inst))) {
-        Value *Op = getOrCreateResult(InVal.DefInst, Inst->getType());
-        if (Op != nullptr) {
-          DEBUG(dbgs() << "EarlyCSE CSE LOAD: " << *Inst
-                       << "  to: " << *InVal.DefInst << '\n');
-          if (!Inst->use_empty())
-            Inst->replaceAllUsesWith(Op);
-          removeMSSA(Inst);
-          Inst->eraseFromParent();
-          Changed = true;
-          ++NumCSELoad;
-          continue;
+      if (InVal.DefInst != nullptr) {
+        bool IsLoadInst = isa<LoadInst>(InVal.DefInst);
+        if(InVal.MatchingId == MemInst.getMatchingId() &&
+            // We don't yet handle removing loads with ordering of any kind.
+            !MemInst.isVolatile() && MemInst.isUnordered() &&
+            // We can't replace an atomic load with one which isn't also atomic.
+            InVal.IsAtomic >= MemInst.isAtomic() &&
+            (InVal.IsInvariant || MemInst.isInvariantLoad() ||
+             isSameMemGeneration(InVal.Generation, CurrentGeneration, IsLoadInst,
+                                 InVal.DefInst, Inst))) {
+          Value *Op = getOrCreateResult(InVal.DefInst, Inst->getType());
+          if (Op != nullptr) {
+            DEBUG(dbgs() << "EarlyCSE CSE LOAD: " << *Inst
+                         << "  to: " << *InVal.DefInst << '\n');
+            if (!Inst->use_empty())
+              Inst->replaceAllUsesWith(Op);
+            removeMSSA(Inst);
+            Inst->eraseFromParent();
+            Changed = true;
+            ++NumCSELoad;
+            continue;
+          }
         }
       }
 
@@ -787,9 +812,9 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
     if (CallValue::canHandle(Inst)) {
       // If we have an available version of this call, and if it is the right
       // generation, replace this instruction.
-      std::pair<Instruction *, unsigned> InVal = AvailableCalls.lookup(Inst);
+      std::pair<Instruction *, MemoryGeneration> InVal = AvailableCalls.lookup(Inst);
       if (InVal.first != nullptr &&
-          isSameMemGeneration(InVal.second, CurrentGeneration, InVal.first,
+          isSameMemGeneration(InVal.second, CurrentGeneration, false, InVal.first,
                               Inst)) {
         DEBUG(dbgs() << "EarlyCSE CSE CALL: " << *Inst
                      << "  to: " << *InVal.first << '\n');
@@ -803,8 +828,8 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
       }
 
       // Otherwise, remember that we have this instruction.
-      AvailableCalls.insert(
-          Inst, std::pair<Instruction *, unsigned>(Inst, CurrentGeneration));
+      AvailableCalls.insert(Inst,
+            std::pair<Instruction *, MemoryGeneration>(Inst, CurrentGeneration));
       continue;
     }
 
@@ -826,38 +851,41 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
     // the store originally was.
     if (MemInst.isValid() && MemInst.isStore()) {
       LoadValue InVal = AvailableLoads.lookup(MemInst.getPointerOperand());
-      if (InVal.DefInst &&
-          InVal.DefInst == getOrCreateResult(Inst, InVal.DefInst->getType()) &&
-          InVal.MatchingId == MemInst.getMatchingId() &&
-          // We don't yet handle removing stores with ordering of any kind.
-          !MemInst.isVolatile() && MemInst.isUnordered() &&
-          isSameMemGeneration(InVal.Generation, CurrentGeneration,
-                              InVal.DefInst, Inst)) {
-        // It is okay to have a LastStore to a different pointer here if MemorySSA
-        // tells us that the load and store are from the same memory generation.
-        // In that case, LastStore should keep its present value since we're
-        // removing the current store.
-        assert((!LastStore ||
-                ParseMemoryInst(LastStore, TTI).getPointerOperand() ==
-                    MemInst.getPointerOperand() ||
-                MSSA) &&
-               "can't have an intervening store if not using MemorySSA!");
-        DEBUG(dbgs() << "EarlyCSE DSE (writeback): " << *Inst << '\n');
-        removeMSSA(Inst);
-        Inst->eraseFromParent();
-        Changed = true;
-        ++NumDSE;
-        // We can avoid incrementing the generation count since we were able
-        // to eliminate this store.
-        continue;
+      if (InVal.DefInst) {
+        bool IsLoadStore = isa<LoadInst>(InVal.DefInst) && isa<StoreInst>(Inst);
+        if (InVal.DefInst == getOrCreateResult(Inst, InVal.DefInst->getType()) &&
+            InVal.MatchingId == MemInst.getMatchingId() &&
+            // We don't yet handle removing stores with ordering of any kind.
+            // For the third argument of isSameMemGeneration : go conservatively..
+            !MemInst.isVolatile() && MemInst.isUnordered() &&
+            isSameMemGeneration(InVal.Generation, CurrentGeneration, IsLoadStore,
+                                InVal.DefInst, Inst)) {
+          // It is okay to have a LastStore to a different pointer here if MemorySSA
+          // tells us that the load and store are from the same memory generation.
+          // In that case, LastStore should keep its present value since we're
+          // removing the current store.
+          assert((!LastStore ||
+                  ParseMemoryInst(LastStore, TTI).getPointerOperand() ==
+                      MemInst.getPointerOperand() ||
+                  MSSA) &&
+                 "can't have an intervening store if not using MemorySSA!");
+          DEBUG(dbgs() << "EarlyCSE DSE (writeback): " << *Inst << '\n');
+          removeMSSA(Inst);
+          Inst->eraseFromParent();
+          Changed = true;
+          ++NumDSE;
+          // We can avoid incrementing the generation count since we were able
+          // to eliminate this store.
+          continue;
+        }
       }
     }
 
     // Okay, this isn't something we can CSE at all.  Check to see if it is
     // something that could modify memory.  If so, our available memory values
     // cannot be used so bump the generation count.
-    if (MayWriteToMemory(Inst)) {
-      ++CurrentGeneration;
+    if (Inst->mayWriteToMemory()) {
+      CurrentGeneration.Increment(Inst);
 
       if (MemInst.isValid() && MemInst.isStore()) {
         // We do a trivial form of DSE if there are two stores to the same
@@ -928,7 +956,7 @@ bool EarlyCSE::run() {
       DT.getRootNode(), DT.getRootNode()->begin(), DT.getRootNode()->end()));
 
   // Save the current generation.
-  unsigned LiveOutGeneration = CurrentGeneration;
+  MemoryGeneration LiveOutGeneration = CurrentGeneration;
 
   // Process the stack.
   while (!nodesToProcess.empty()) {
