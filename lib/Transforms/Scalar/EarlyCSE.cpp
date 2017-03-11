@@ -532,6 +532,19 @@ private:
 };
 }
 
+static bool MayWriteToMemory(Instruction *Inst) {
+  CallSite CS(Inst);
+  if (CS) {
+    auto Fn = CS.getCalledFunction();
+    // CallSite can take its functioon in constant expr form.
+    if (Fn && Fn->onlyAccessesInaccessibleMemory()) {
+      // This function call will never clobber any loads
+      return false;
+    }
+  }
+  return Inst->mayWriteToMemory();
+}
+
 /// Determine if the memory referenced by LaterInst is from the same heap
 /// version as EarlierInst.
 /// This is currently called in two scenarios:
@@ -843,7 +856,7 @@ bool EarlyCSE::processNode(DomTreeNode *Node) {
     // Okay, this isn't something we can CSE at all.  Check to see if it is
     // something that could modify memory.  If so, our available memory values
     // cannot be used so bump the generation count.
-    if (Inst->mayWriteToMemory()) {
+    if (MayWriteToMemory(Inst)) {
       ++CurrentGeneration;
 
       if (MemInst.isValid() && MemInst.isStore()) {
