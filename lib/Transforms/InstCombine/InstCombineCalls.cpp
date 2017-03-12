@@ -2799,6 +2799,27 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // TODO: relocate((gep p, C, C2, ...)) -> gep(relocate(p), C, C2, ...)
     break;
   }
+
+  case Intrinsic::capture: {
+    Value *PtrOp = II->getArgOperand(0);
+    // We don't need to capture a block several times
+    // 10: llvm.capture(ptr);
+    // 20: llvm.capture(ptr);
+    // ->
+    // 10: llvm.capture(ptr)
+    for (auto itr = PtrOp->user_begin(); itr != PtrOp->user_end(); itr++) {
+      Value *User = *itr;
+      IntrinsicInst *UserII = dyn_cast<IntrinsicInst>(User);
+      if (UserII) {
+        if (UserII == II) continue;
+        if ((UserII->getIntrinsicID() == Intrinsic::capture)
+            && DT.dominates(UserII, II)) {
+          return eraseInstFromFunction(*II);
+        }
+      }
+    }
+    break;
+  }
   }
 
   return visitCallSite(II);
