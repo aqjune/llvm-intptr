@@ -283,9 +283,8 @@ public:
       ReadOnlyFunc++;
       CallSite CS(Inst);
       if (CS) {
-        auto Fn = CS.getCalledFunction();
         // CallSite can take its functioon in constant expr form.
-        if (Fn && Fn->onlyAccessesInaccessibleMemory()) {
+        if (CS.onlyReadsOrWritesToInaccessibleMemory()) {
           // This function call will never clobber any loads
           // Increment ReadOnlyFunc only
           return;
