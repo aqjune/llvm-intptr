@@ -1776,6 +1776,15 @@ public:
     addAttribute(AttributeSet::FunctionIndex, Attribute::ArgMemOnly);
   }
 
+  /// Determine if the call reads or writes to inaccessible memory, but not
+  /// to accessible memory. If the call is read none, returns false.
+  bool onlyReadsOrWritesToInaccessibleMemory() const {
+    return !doesNotAccessMemory() && hasFnAttr(Attribute::InaccessibleMemOnly);
+  }
+  void setOnlyReadsOrWritesToInaccessibleMemory() {
+    addAttribute(AttributeSet::FunctionIndex, Attribute::InaccessibleMemOnly);
+  }
+
   /// Determine if the call cannot return.
   bool doesNotReturn() const { return hasFnAttr(Attribute::NoReturn); }
   void setDoesNotReturn() {
@@ -3805,6 +3814,15 @@ public:
   }
   void setOnlyAccessesArgMemory() {
     addAttribute(AttributeSet::FunctionIndex, Attribute::ArgMemOnly);
+  }
+
+  /// Determine if the call reads or writes to inaccessible memory, but not
+  /// to accessible memory. If the call is read none, returns false.
+  bool onlyReadsOrWritesToInaccessibleMemory() const {
+    return !doesNotAccessMemory() && hasFnAttr(Attribute::InaccessibleMemOnly);
+  }
+  void setOnlyReadsOrWritesToInaccessibleMemory() {
+    addAttribute(AttributeSet::FunctionIndex, Attribute::InaccessibleMemOnly);
   }
 
   /// Determine if the call cannot return.

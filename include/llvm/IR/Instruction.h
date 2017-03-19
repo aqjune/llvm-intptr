@@ -409,6 +409,9 @@ public:
   /// Return true if this instruction may modify memory.
   bool mayWriteToMemory() const;
 
+  /// Return true if this instruction may modify accessible memory.
+  bool mayWriteToAccessibleMemory() const;
+
   /// Return true if this instruction may read memory.
   bool mayReadFromMemory() const;
 

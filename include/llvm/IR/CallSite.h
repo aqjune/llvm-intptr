@@ -450,6 +450,15 @@ public:
     CALLSITE_DELEGATE_SETTER(setOnlyAccessesArgMemory());
   }
 
+  /// @brief Determine if the call reads or writes to inaccessible memory, but
+  /// not to accessible memory. If the call is read none, returns false.
+  bool onlyReadsOrWritesToInaccessibleMemory() const {
+    CALLSITE_DELEGATE_GETTER(onlyReadsOrWritesToInaccessibleMemory());
+  }
+  void setOnlyReadsOrWritesToInaccessibleMemory() {
+    CALLSITE_DELEGATE_SETTER(setOnlyReadsOrWritesToInaccessibleMemory());
+  }
+
   /// @brief Determine if the call cannot return.
   bool doesNotReturn() const {
     CALLSITE_DELEGATE_GETTER(doesNotReturn());
