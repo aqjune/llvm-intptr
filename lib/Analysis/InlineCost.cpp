@@ -1086,6 +1086,11 @@ bool CallAnalyzer::analyzeBlock(BasicBlock *BB,
     if (isa<DbgInfoIntrinsic>(I))
       continue;
 
+    if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+      if (II->getIntrinsicID() == Intrinsic::capture)
+        continue;
+    }
+
     // Skip ephemeral values.
     if (EphValues.count(&*I))
       continue;
