@@ -2802,6 +2802,15 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
 
   case Intrinsic::capture: {
     Value *PtrOp = II->getArgOperand(0);
+    // 10: y = bitcast ty1* ptr to ty2*
+    // 20: llvm.capture(y)
+    // ->
+    // 10: llvm.capture(ptr)
+    if (isa<BitCastInst>(PtrOp)) {
+        PtrOp = dyn_cast<BitCastInst>(PtrOp)->getOperand(0);
+        II->setArgOperand(0, PtrOp);
+    }
+
     // We don't need to capture a block several times
     // 10: llvm.capture(ptr);
     // 20: llvm.capture(ptr);
