@@ -2808,7 +2808,13 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // 10: llvm.capture(ptr)
     if (isa<BitCastInst>(PtrOp)) {
         PtrOp = dyn_cast<BitCastInst>(PtrOp)->getOperand(0);
-        II->setArgOperand(0, PtrOp);
+        Value *Args[] = {PtrOp};
+        Type *ArgTys[] = {PtrOp->getType()};
+
+        Module *M = II->getModule();
+        Value *F = Intrinsic::getDeclaration(M, Intrinsic::capture, ArrayRef<Type *>(ArgTys, 1));
+        Builder->CreateCall(F, Args);
+        return eraseInstFromFunction(*II);
     }
 
     // We don't need to capture a block several times
