@@ -5959,7 +5959,6 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   case Intrinsic::experimental_deoptimize:
     LowerDeoptimizeCall(&I);
     return nullptr;
-
   case Intrinsic::experimental_vector_reduce_fadd:
   case Intrinsic::experimental_vector_reduce_fmul:
   case Intrinsic::experimental_vector_reduce_add:
@@ -5976,7 +5975,16 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     visitVectorReduce(I, Intrinsic);
     return nullptr;
   }
-
+  case Intrinsic::psub:
+    // pointer to integer casting
+    EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
+                                                          I.getType());
+    SDValue Op1 = DAG.getZExtOrTrunc(getValue(I.getArgOperand(0)), getCurSDLoc(), DestVT);
+    SDValue Op2 = DAG.getZExtOrTrunc(getValue(I.getArgOperand(1)), getCurSDLoc(), DestVT);
+    SDValue BinNodeValue = DAG.getNode(ISD::SUB, getCurSDLoc(), Op1.getValueType(),
+                                       Op1, Op2);
+    setValue(&I, BinNodeValue);
+    return nullptr;
   }
 }
 
