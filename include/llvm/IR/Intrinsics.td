@@ -692,6 +692,10 @@ let IntrProperties = [IntrNoMem] in {
   def int_restrict : Intrinsic<[llvm_anyptr_ty], [llvm_anyptr_ty, llvm_anyptr_ty]>;
 }
 
+let IntrProperties = [IntrNoMem] in {
+def int_psub : Intrinsic<[llvm_anyint_ty], [llvm_anyptr_ty, llvm_anyptr_ty]>;
+}
+
 //===-------------------------- Masked Intrinsics -------------------------===//
 //
 def int_masked_store : Intrinsic<[], [llvm_anyvector_ty,
