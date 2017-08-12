@@ -2045,7 +2045,7 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
       // If "A == B" is known true, or "A != B" is known false, then replace
       // A with B everywhere in the scope.
-      if (!Op->getType()->isPtrOrPtrVectorTy() &&
+      if (!Op0->getType()->isPtrOrPtrVectorTy() &&
           ((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
           (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE)))
         Worklist.push_back(std::make_pair(Op0, Op1));
