@@ -2799,6 +2799,14 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // TODO: relocate((gep p, C, C2, ...)) -> gep(relocate(p), C, C2, ...)
     break;
   }
+  case Intrinsic::restrict: {
+    // p' = call llvm.restrict(p, q)
+    Value *P = II->getArgOperand(0);
+    Value *Q = II->getArgOperand(1);
+    if (GetUnderlyingObject(P, DL) == GetUnderlyingObject(Q, DL))
+      return replaceInstUsesWith(*II, P);
+    break;
+  }
   }
 
   return visitCallSite(II);

@@ -5746,6 +5746,10 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
   case Intrinsic::experimental_deoptimize:
     LowerDeoptimizeCall(&I);
     return nullptr;
+
+  case Intrinsic::restrict:
+    // Discard restrict.
+    return nullptr;
   }
 }
 
