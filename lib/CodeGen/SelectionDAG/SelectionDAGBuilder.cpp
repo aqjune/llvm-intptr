@@ -5749,6 +5749,7 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
 
   case Intrinsic::restrict:
     // Discard restrict.
+    setValue(&I, getValue(I.getArgOperand(0)));
     return nullptr;
   }
 }
