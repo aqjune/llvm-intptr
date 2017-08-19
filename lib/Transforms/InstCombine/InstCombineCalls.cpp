@@ -2804,6 +2804,10 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     Value *P = II->getArgOperand(0);
     Value *Q = II->getArgOperand(1);
     if (GetUnderlyingObject(P, DL) == GetUnderlyingObject(Q, DL))
+      // Operation on same base is identity
+      return replaceInstUsesWith(*II, P);
+    if (isGuaranteedToBeLogicalPointer(P, DL, nullptr, &TLI, 6) &&
+        isGuaranteedToBeLogicalPointer(Q, DL, nullptr, &TLI, 6))
       return replaceInstUsesWith(*II, P);
     break;
   }

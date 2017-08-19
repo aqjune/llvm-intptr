@@ -2972,6 +2972,22 @@ bool llvm::isGEPBasedOnPointerToString(const GEPOperator *GEP) {
   return true;
 }
 
+bool llvm::isGuaranteedToBeLogicalPointer(Value *V, const DataLayout &DL, LoopInfo *LI,
+                            const TargetLibraryInfo *TLI, unsigned MaxLookup) {
+  SmallVector<Value *, 4> Objects;
+  GetUnderlyingObjects(V, Objects, DL, LI, MaxLookup);
+  if (Objects.begin() == Objects.end())
+    return false;
+
+  for (auto itr = Objects.begin(); itr != Objects.end(); itr++) {
+    Value *V = *itr;
+    if (!isa<AllocaInst>(V) && !isAllocationFn(V, TLI, true) &&
+        !isa<GlobalObject>(V) && !isa<ConstantPointerNull>(V))
+      return false;
+  }
+  return true;
+}
+
 /// This function computes the length of a null-terminated C string pointed to
 /// by V. If successful, it returns true and returns the string in Str.
 /// If unsuccessful, it returns false.

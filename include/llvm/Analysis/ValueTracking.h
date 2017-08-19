@@ -208,6 +208,10 @@ template <typename T> class ArrayRef;
   /// and is indexing into this string.
   bool isGEPBasedOnPointerToString(const GEPOperator *GEP);
 
+  /// Returns true if V is known to be a logical pointer.
+  bool isGuaranteedToBeLogicalPointer(Value *V, const DataLayout &DL, LoopInfo *LI,
+                        const TargetLibraryInfo *TLI, unsigned MaxLookup);
+
   /// This function computes the length of a null-terminated C string pointed to
   /// by V. If successful, it returns true and returns the string in Str. If
   /// unsuccessful, it returns false. This does not include the trailing null
