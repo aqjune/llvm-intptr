@@ -2982,7 +2982,8 @@ bool llvm::isGuaranteedToBeLogicalPointer(Value *V, const DataLayout &DL, LoopIn
   for (auto itr = Objects.begin(); itr != Objects.end(); itr++) {
     Value *V = *itr;
     if (!isa<AllocaInst>(V) && !isAllocationFn(V, TLI, true) &&
-        !isa<GlobalObject>(V) && !isa<ConstantPointerNull>(V))
+        !isa<GlobalObject>(V) && !isa<ConstantPointerNull>(V) &&
+        !isa<BlockAddress>(V))
       return false;
   }
   return true;

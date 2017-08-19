@@ -2804,11 +2804,17 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     Value *P = II->getArgOperand(0);
     Value *Q = II->getArgOperand(1);
     if (GetUnderlyingObject(P, DL) == GetUnderlyingObject(Q, DL))
-      // Operation on same base is identity
+      // Operation on same base is identity.
       return replaceInstUsesWith(*II, P);
     if (isGuaranteedToBeLogicalPointer(P, DL, nullptr, &TLI, 6) &&
         isGuaranteedToBeLogicalPointer(Q, DL, nullptr, &TLI, 6))
+      // Restricting logical pointer with respect to logical pointer
+      // is identity.
       return replaceInstUsesWith(*II, P);
+    if (isa<ConstantPointerNull>(Q) || isa<ConstantPointerNull>(P))
+      // Canonical form! Instead, GVN must not replace null with
+      // other complex expression.
+      return replaceInstUsesWith(*II, P); // identitiy. not replace with null!
     break;
   }
   }
