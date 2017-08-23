@@ -644,6 +644,151 @@ static ConstantInt *GetAnyNonZeroConstInt(PHINode &PN) {
   return ConstantInt::get(cast<IntegerType>(PN.getType()), 1);
 }
 
+/// Check whether PN has form
+/// prebb:
+///   rp0 = call @llvm.restrict p0, q
+///   br loop, else
+/// loop:
+///   p = phi [rp0, prebb] [rp, loop]
+///   ..
+///   gep = getelementptr p, k
+///   ..
+///   rp = call @llvm.restrict gep, q
+///   use(rp)
+///   br cond, loop, else'
+///
+/// This form comes from
+/// for(; p != q; p++) { .. }
+/// after loop rotate.
+static bool hasGEPRestrictCycle(PHINode &PN, DominatorTree *DT,
+                         IntrinsicInst *&OuterRestrictCall,
+                         IntrinsicInst *&InnerRestrictCall) {
+  // PN should have 2 inputs.
+  if (PN.getNumIncomingValues() != 2)
+    return false;
+
+  IntrinsicInst *V0 = dyn_cast<IntrinsicInst>(PN.getIncomingValue(0));
+  IntrinsicInst *V1 = dyn_cast<IntrinsicInst>(PN.getIncomingValue(1));
+  if (!(V0 && V1 && V0->getIntrinsicID() == Intrinsic::restrict &&
+        V1->getIntrinsicID() == Intrinsic::restrict))
+    return false;
+  if (V0->getArgOperand(1) != V1->getArgOperand(1)) {
+    //DEBUG(dbgs() << "hasRestrictGEPCycle: two intrinsics' q type differ\n");
+    return false;
+  }
+
+  GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(V0->getArgOperand(0));
+  bool isV0Loop = false;
+  if (GEP && GEP->getOperand(0) == &PN) {
+    // Found!
+    InnerRestrictCall = V0;
+    OuterRestrictCall = V1;
+    isV0Loop = true;
+  }
+  GEP = dyn_cast<GetElementPtrInst>(V1->getArgOperand(0));
+  if (GEP && GEP->getOperand(0) == &PN) {
+    if (isV0Loop) {
+      //DEBUG(dbgs() << "hasRestrictGEPCycle: ??\n");
+      // ??
+      return false;
+    }
+    // Found!
+    InnerRestrictCall = V1;
+    OuterRestrictCall = V0;
+    //DEBUG(dbgs() << "hasRestrictGEPCycle: YES\n");
+    return true;
+  }
+  //DEBUG(dbgs() << "hasRestrictGEPCycle: YES2\n");
+  return isV0Loop;
+}
+
+// prebb:
+//   br loop, else
+// loop:
+//   p = phi [p0, prebb] [gep, loop]
+//   rp = call @llvm.restrict p, q 
+//   rq = call @llvm.restrict q, p // these two are the only uses of p
+//   gep = getelementptr rp, k
+//   ..
+//   br cond, loop, else'
+//
+// ->
+//
+// prebb:
+//   rp0 = call @llvm.restrict p0, q
+//   br loop, else
+// loop:
+//   p = phi [p0, prebb] [gep, loop]
+//   rq = call @llvm.restrict q, p
+//   gep = getelementptr p, k
+//   ..
+//   br cond, loop, else'
+//
+// This form comes from
+// for(; p != q; p++) { .. }
+// before loop rotation.
+static bool hasRestrictGEPCycle(PHINode &PN, DominatorTree *DT,
+                         IntrinsicInst *&RP,
+                         Value *&P0, Value *&Q, BasicBlock *&PredBB) {
+  // PN should have 2 inputs.
+  if (PN.getNumIncomingValues() != 2)
+    return false;
+  // PN should hvae only 2 uses which are restrict.
+  if (!PN.hasNUses(2))
+    return false;
+  auto uitr = PN.user_begin();
+  User *U1 = *uitr;
+  uitr++;
+  User *U2 = *uitr;
+  IntrinsicInst *I1 = dyn_cast<IntrinsicInst>(U1);
+  IntrinsicInst *I2 = dyn_cast<IntrinsicInst>(U2);
+  if (!I1 || !I2) return false;
+  if (I1->getIntrinsicID() != Intrinsic::restrict ||
+      I2->getIntrinsicID() != Intrinsic::restrict)
+    return false;
+
+  if (I1->getArgOperand(0) != &PN)
+    std::swap(I1, I2);
+  if (I1->getArgOperand(0) != &PN)
+    return false;
+
+  RP = I1;
+  // domination check of q
+  Q = I1->getArgOperand(1);
+  if (Instruction *QI = dyn_cast<Instruction>(Q)) {
+    if (!DT->dominates(QI, &PN))
+      return false;
+  } else if (!isa<GlobalObject>(Q) && !isa<Argument>(Q) &&
+             !isa<Constant>(Q)) {
+    return false;
+  }
+  // domination check of q is done
+
+  auto checker = [I1](GetElementPtrInst *GEP) {
+    return GEP && GEP->getOperand(0) == I1;
+  };
+  auto gepcaster = [](Value *V) {
+    return isa<GetElementPtrInst>(V) ?
+            dyn_cast<GetElementPtrInst>(V) : nullptr;
+  };
+
+  GetElementPtrInst *GEP1 = gepcaster(PN.getIncomingValue(0));
+  GetElementPtrInst *GEP2 = gepcaster(PN.getIncomingValue(1));
+
+  if (checker(GEP1) && !checker(GEP2)) {
+    // P0 is from second one
+    P0 = PN.getOperand(1);
+    PredBB = PN.getIncomingBlock(1);
+    return true;
+  } else if (!checker(GEP1) && checker(GEP2)) {
+    // P0 is from first one
+    P0 = PN.getOperand(0);
+    PredBB = PN.getIncomingBlock(0);
+    return true;
+  }
+  return false;
+}
+
 namespace {
 struct PHIUsageRecord {
   unsigned PHIId;     // The ID # of the PHI (something determinstic to sort on)
@@ -978,6 +1123,95 @@ Instruction *InstCombiner::visitPHINode(PHINode &PN) {
         if (PHIsEqualValue(&PN, NonPhiInVal, ValueEqualPHIs))
           return replaceInstUsesWith(PN, NonPhiInVal);
       }
+    }
+  }
+
+  {
+    IntrinsicInst *OuterRestrictCall = nullptr;
+    IntrinsicInst *InnerRestrictCall = nullptr;
+    // prebb:
+    //   rp0 = call @llvm.restrict p0, q
+    //   br loop, else
+    // loop:
+    //   p = phi [rp0, prebb] [rp, loop]
+    //   ..
+    //   gep = getelementptr p, k
+    //   ..
+    //   rp = call @llvm.restrict gep, q
+    //   use(rp)
+    //   br cond, loop, else'
+    //
+    // ->
+    //
+    // prebb:
+    //   rp0 = call @llvm.restrict p0, q
+    //   br loop, else
+    // loop:
+    //   p = phi [rp0, prebb] [gep, loop]
+    //   ..
+    //   gep = getelementptr p, k
+    //   ..
+    //   use(gep)
+    //   br cond, loop, else'
+    //
+    // This form comes from
+    // for(; p != q; p++) { .. }
+    // after loop rotation.
+    if (hasGEPRestrictCycle(PN, &DT, OuterRestrictCall, InnerRestrictCall)) {
+      GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(
+          InnerRestrictCall->getArgOperand(0));
+      replaceInstUsesWith(*InnerRestrictCall, GEP);
+      // Remove old restrict
+      eraseInstFromFunction(*InnerRestrictCall);
+      return &PN;
+    }
+    // prebb:
+    //   br loop, else
+    // loop:
+    //   p = phi [p0, prebb] [gep, loop]
+    //   rp = call @llvm.restrict p, q 
+    //   rq = call @llvm.restrict q, p // these two are the only uses of p
+    //   gep = getelementptr rp, k
+    //   ..
+    //   br cond, loop, else'
+    //
+    // ->
+    //
+    // prebb:
+    //   rp0 = call @llvm.restrict p0, q
+    //   br loop, else
+    // loop:
+    //   p = phi [p0, prebb] [gep, loop]
+    //   rq = call @llvm.restrict q, p
+    //   gep = getelementptr p, k
+    //   ..
+    //   br cond, loop, else'
+    //
+    // This form comes from
+    // for(; p != q; p++) { .. }
+    // before loop rotation.
+    IntrinsicInst *RP;
+    Value *P0, *Q;
+    BasicBlock *PredBB;
+    if (hasRestrictGEPCycle(PN, &DT, RP, P0, Q, PredBB)) {
+      Module *M = PN.getModule();
+      Type *Tys[3] = { P0->getType(),
+                       P0->getType(), Q->getType() };
+      Value *Args[2] = { P0, Q };
+
+      Value *F = Intrinsic::getDeclaration(M, Intrinsic::restrict, Tys);
+      CallInst *NewInst = CallInst::Create(F, Args);
+      InsertNewInstBefore(NewInst, *PredBB->getTerminator());
+      if (PN.getIncomingValue(0) == P0)
+        PN.setIncomingValue(0, NewInst);
+      else if (PN.getIncomingValue(1) == P0)
+        PN.setIncomingValue(1, NewInst);
+      else
+        assert(false);
+
+      replaceInstUsesWith(*RP, &PN); // This is valid because PN had only 2 uses.
+      eraseInstFromFunction(*RP);
+      return &PN;
     }
   }
 

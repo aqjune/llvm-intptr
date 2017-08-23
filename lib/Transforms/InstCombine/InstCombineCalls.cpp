@@ -2803,9 +2803,58 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     // p' = call llvm.restrict(p, q)
     Value *P = II->getArgOperand(0);
     Value *Q = II->getArgOperand(1);
-    if (GetUnderlyingObject(P, DL) == GetUnderlyingObject(Q, DL))
-      // Operation on same base is identity.
-      return replaceInstUsesWith(*II, P);
+
+    SmallVector<Value *, 4> PBases, QBases;
+    GetUnderlyingObjects(P, PBases, DL, nullptr, 6);
+    GetUnderlyingObjects(Q, QBases, DL, nullptr, 6);
+    if (PBases.size() == 1 && QBases.size() == 1) {
+      Value *P0 = PBases[0];
+      Value *Q0 = QBases[0];
+      if (P0 == Q0) {
+        // Operation on same base is identity.
+        return replaceInstUsesWith(*II, P);
+      }
+      bool PLocal = isa<AllocaInst>(P0) || isAllocationFn(P0, &TLI, true);
+      bool QLocal = isa<AllocaInst>(Q0) || isAllocationFn(Q0, &TLI, true);
+      if ((PLocal && isa<Argument>(Q0)) |
+          (QLocal && isa<Argument>(P0))) {
+        // restrict becomes identity function because provenance of
+        // P0 and Q0 are disjoint!
+        return replaceInstUsesWith(*II, P);
+      }
+      // y' = restrict x, y
+      // x' = restrict y' y
+      // ->
+      // x' = restrict x, y
+      if (IntrinsicInst *PI = dyn_cast<IntrinsicInst>(P0))
+        if (PI->getIntrinsicID() == Intrinsic::restrict)
+          if (PI->getOperand(1) == Q)
+            return replaceInstUsesWith(*II, P);
+      // y' = restrict y, x
+      // x' = restrict x, y'
+      // ->
+      // x' = restrict x, y
+      if (IntrinsicInst *PI = dyn_cast<IntrinsicInst>(Q0))
+        if (PI->getIntrinsicID() == Intrinsic::restrict)
+          if (PI->getArgOperand(1) == P) {
+            PI->setArgOperand(1, PI->getArgOperand(0));
+            return II;
+          }
+    }
+
+    if (QBases.size() == 1 && QBases[0] != Q) {
+      Value *Q2 = QBases[0];
+      Module *M = II->getModule();
+      Type *Tys[3] = { P->getType(), P->getType(), Q2->getType() };
+      Value *Args[2] = { P, Q2 };
+
+      Value *F = Intrinsic::getDeclaration(M, Intrinsic::restrict, Tys);
+      CallInst *NewInst = CallInst::Create(F, Args);
+      InsertNewInstBefore(NewInst, *II);
+      NewInst->takeName(II);
+      return replaceInstUsesWith(*II, NewInst);
+    }
+
     if (isGuaranteedToBeLogicalPointer(P, DL, nullptr, &TLI, 6) &&
         isGuaranteedToBeLogicalPointer(Q, DL, nullptr, &TLI, 6))
       // Restricting logical pointer with respect to logical pointer
@@ -2815,6 +2864,45 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       // Canonical form! Instead, GVN must not replace null with
       // other complex expression.
       return replaceInstUsesWith(*II, P); // identitiy. not replace with null!
+
+    // p' = gep p, i // noinbounds
+    // rp' = call @llvm.restrict(p', q)
+    // ->
+    // rp = call @llvm.restrict(p, q)
+    // rp' = gep rp, i // noinbounds
+    // Not sure whether this optimization is needed
+    /*
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(P);
+    if (GEP && GEP->hasOneUse() && !GEP->isInBounds()) {
+      Module *M = II->getModule();
+      Type *Tys[3] = { GEP->getPointerOperandType(),
+                       GEP->getPointerOperandType(), Q->getType() };
+      Value *Args[2] = { GEP->getPointerOperand(), Q };
+
+      Value *F = Intrinsic::getDeclaration(M, Intrinsic::restrict, Tys);
+      CallInst *NewInst = CallInst::Create(F, Args);
+      InsertNewInstBefore(NewInst, *GEP);
+      NewInst->takeName(II);
+      GEP->setOperand(0, NewInst);
+      return replaceInstUsesWith(*II, GEP);
+    }
+    */
+    // q' = gep q, i
+    // rp' = call @llvm.restrict(p, q')
+    // ->
+    // q' = gep q, i
+    // rp = call @llvm.restrict(p, q)
+    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Q);
+    if (GEP) {
+      Module *M = II->getModule();
+      Type *Tys[3] = { P->getType(), P->getType(),
+                       GEP->getPointerOperandType() };
+      Value *Args[2] = { P, GEP->getPointerOperand() };
+
+      Value *F = Intrinsic::getDeclaration(M, Intrinsic::restrict, Tys);
+      Value *NewII = Builder->CreateCall(F, Args);
+      return replaceInstUsesWith(*II, NewII);
+    }
     break;
   }
   }
