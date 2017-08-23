@@ -4321,14 +4321,6 @@ static Value *SimplifyIntrinsic(Function *F, IterTy ArgBegin, IterTy ArgEnd,
       return nullptr;
     }
     case Intrinsic::restrict: {
-      if (GetUnderlyingObject(LHS, Q.DL) == GetUnderlyingObject(RHS, Q.DL))
-        // Operation on same base is identity.
-        return LHS;
-      if (isGuaranteedToBeLogicalPointer(LHS, Q.DL, nullptr, Q.TLI, 6) &&
-          isGuaranteedToBeLogicalPointer(RHS, Q.DL, nullptr, Q.TLI, 6))
-        // Restricting logical pointer with respect to logical pointer
-        // is identity.
-        return LHS;
       if (isa<ConstantPointerNull>(LHS) || isa<ConstantPointerNull>(RHS))
         // Canonical form! Instead, GVN must not replace null with
         // other complex expression.
