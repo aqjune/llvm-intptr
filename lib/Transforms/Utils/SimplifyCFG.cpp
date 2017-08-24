@@ -2314,7 +2314,8 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
           InI1->hasOneUse() && InI2->hasOneUse()) {
         Value *S1 = SimplifyInstruction(InI1, DL);
         Value *S2 = SimplifyInstruction(InI2, DL);
-        if (S1 != InI1 && S2 != InI2) {
+        if (S1 != nullptr && S2 != nullptr &&
+            S1 != InI1 && S2 != InI2) {
           II->setOperand(0, S1);
           II->setOperand(1, S2);
           InI1->eraseFromParent();
