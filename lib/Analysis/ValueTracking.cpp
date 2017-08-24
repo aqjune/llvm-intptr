@@ -3344,6 +3344,9 @@ bool llvm::isSafeToSpeculativelyExecute(const Value *V,
       case Intrinsic::rint:
       case Intrinsic::round:
         return true;
+      // restrict has no UB.
+      case Intrinsic::restrict:
+        return true;
       // TODO: are convert_{from,to}_fp16 safe?
       // TODO: can we list target-specific intrinsics here?
       default: break;

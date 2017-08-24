@@ -820,6 +820,8 @@ public:
     case Intrinsic::lifetime_start:
     case Intrinsic::lifetime_end:
       return 0;
+    case Intrinsic::restrict:
+      return 0;
     case Intrinsic::masked_store:
       return static_cast<T *>(this)
           ->getMaskedMemoryOpCost(Instruction::Store, Tys[0], 0, 0);

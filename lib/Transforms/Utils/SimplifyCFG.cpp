@@ -1975,7 +1975,15 @@ static bool SpeculativelyExecuteBB(BranchInst *BI, BasicBlock *ThenBB,
 
     // Only speculatively execute a single instruction (not counting the
     // terminator) for now.
-    ++SpeculationCost;
+    
+    // To deal with MultiSource/Benchmarks/McCat/17-bintr/bintree.c
+    //bool incCost = true;
+    //if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
+    //  if (II->getIntrinsicID() == Intrinsic::restrict)
+    //    incCost = false;
+
+    //if (incCost)
+      ++SpeculationCost;
     if (SpeculationCost > 1)
       return false;
 
@@ -2294,6 +2302,28 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
   MaxCostVal0 *= TargetTransformInfo::TCC_Basic;
   MaxCostVal1 *= TargetTransformInfo::TCC_Basic;
 
+  // To deal with MultiSource/Benchmarks/McCat/17-bintr/bintree.c..
+  auto simplifyRestrictIcmp = [&DL](Value *V) {
+    if (ICmpInst *II = dyn_cast<ICmpInst>(V)) {
+      IntrinsicInst *InI1 = dyn_cast<IntrinsicInst>(II->getOperand(0));
+      IntrinsicInst *InI2 = dyn_cast<IntrinsicInst>(II->getOperand(1));
+      if (InI1 && InI2 && InI1->getIntrinsicID() == Intrinsic::restrict &&
+          InI2->getIntrinsicID() == Intrinsic::restrict &&
+          InI1->getParent() == II->getParent() &&
+          InI2->getParent() == II->getParent() &&
+          InI1->hasOneUse() && InI2->hasOneUse()) {
+        Value *S1 = SimplifyInstruction(InI1, DL);
+        Value *S2 = SimplifyInstruction(InI2, DL);
+        if (S1 != InI1 && S2 != InI2) {
+          II->setOperand(0, S1);
+          II->setOperand(1, S2);
+          InI1->eraseFromParent();
+          InI2->eraseFromParent();
+        }
+      }
+    }
+  };
+
   for (BasicBlock::iterator II = BB->begin(); isa<PHINode>(II);) {
     PHINode *PN = cast<PHINode>(II++);
     if (Value *V = SimplifyInstruction(PN, DL)) {
@@ -2301,6 +2331,8 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
       PN->eraseFromParent();
       continue;
     }
+    simplifyRestrictIcmp(PN->getIncomingValue(0));
+    simplifyRestrictIcmp(PN->getIncomingValue(1));
 
     if (!DominatesMergePoint(PN->getIncomingValue(0), BB, &AggressiveInsts,
                              MaxCostVal0, TTI) ||
@@ -2360,7 +2392,6 @@ static bool FoldTwoEntryPHINode(PHINode *PN, const TargetTransformInfo &TTI,
 
   DEBUG(dbgs() << "FOUND IF CONDITION!  " << *IfCond << "  T: "
                << IfTrue->getName() << "  F: " << IfFalse->getName() << "\n");
-
   // If we can still promote the PHI nodes after this gauntlet of tests,
   // do all of the PHI's now.
   Instruction *InsertPt = DomBlock->getTerminator();
@@ -2600,7 +2631,15 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, unsigned BonusInstThreshold) {
     // I is used in the same BB. Since BI uses Cond and doesn't have more slots
     // to use any other instruction, User must be an instruction between next(I)
     // and Cond.
-    ++NumBonusInsts;
+
+    // To deal with MultiSource/Benchmarks/McCat/17-bintr/bintree.c
+    //bool incCost = true;
+    //if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
+    //  if (II->getIntrinsicID() == Intrinsic::restrict)
+    //    incCost = false;
+
+    //if (incCost)
+      ++NumBonusInsts;
     // Early exits once we reach the limit.
     if (NumBonusInsts > BonusInstThreshold)
       return false;
