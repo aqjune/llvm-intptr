@@ -4430,6 +4430,94 @@ Instruction *InstCombiner::visitICmpInst(ICmpInst &I) {
   if (Instruction *Res = foldICmpEquality(I))
     return Res;
 
+  // B1:
+  //  rp1 = restrict (p1, q1)
+  //  rq1 = restrict (q1, p1)
+  //  br BB
+  // B2:
+  //  rp2 = restrict (p2, q2)
+  //  rq2 = restrict (p2, q2)
+  //  br BB
+  // BB:
+  //  pp = phi (rp1, rp2, ..)
+  //  pq = phi (rq1, rq2, ..)
+  //  icmp pp, pq // pp, pq's only use
+  // ->
+  // BB:
+  //  pp' = phi (p1, p2, ..)
+  //  pq' = phi (q1, q2, ..)
+  //  rp = restrict pp', pq'
+  //  rq = restrict pq', pp'
+  //  icmp rp, rq
+  if (isa<PHINode>(Op0) && isa<PHINode>(Op1)) {
+    PHINode *PN1 = dyn_cast<PHINode>(Op0);
+    PHINode *PN2 = dyn_cast<PHINode>(Op1);
+    BasicBlock *BB = I.getParent();
+    if (PN1->getParent() == BB && PN2->getParent() == BB &&
+        PN1->hasOneUse() && PN2->hasOneUse()) {
+      SmallVector<BasicBlock*, 4> Blocks;
+      SmallVector<Value*, 4> PVals;
+      SmallVector<Value*, 4> QVals;
+      bool Enabled = true;
+      for (unsigned i = 0; i < PN1->getNumIncomingValues(); i++) {
+        Value *V1 = PN1->getIncomingValue(i);
+        Value *V2 = PN2->getIncomingValueForBlock(PN1->getIncomingBlock(i));
+        if (!isa<IntrinsicInst>(V1) || !isa<IntrinsicInst>(V2)) {
+          Enabled = false;
+          break;
+        }
+        IntrinsicInst *II1 = dyn_cast<IntrinsicInst>(V1);
+        IntrinsicInst *II2 = dyn_cast<IntrinsicInst>(V2);
+        if (II1->getIntrinsicID() != Intrinsic::restrict ||
+            II2->getIntrinsicID() != Intrinsic::restrict) {
+          Enabled = false;
+          break;
+        }
+        Value *P = II1->getArgOperand(0);
+        Value *Q = II1->getArgOperand(1);
+        if (P->getType() != Q->getType() || P != II2->getArgOperand(1) ||
+            Q != II2->getArgOperand(0)) {
+          Enabled = false;
+          break;
+        }
+        Blocks.push_back(PN1->getIncomingBlock(i));
+        PVals.push_back(P);
+        QVals.push_back(Q);
+      }
+      if (Enabled) {
+        // Create new PHIs!
+        unsigned N = PN1->getNumIncomingValues();
+        PHINode *PNP = Builder->CreatePHI(PN1->getType(), N, PN1->getName());
+        PHINode *PNQ = Builder->CreatePHI(PN1->getType(), N, PN2->getName());
+        for (unsigned i = 0; i < N; i++) {
+          PNP->addIncoming(PVals[i], Blocks[i]);
+          PNQ->addIncoming(QVals[i], Blocks[i]);
+        }
+        Module *M = I.getModule();
+
+        Type *TysP[3] = { PNP->getType(), PNP->getType(), PNQ->getType() };
+        Type *TysQ[3] = { PNQ->getType(), PNQ->getType(), PNP->getType() };
+        Value *ArgsP[2] = { PNP, PNQ };
+        Value *ArgsQ[2] = { PNQ, PNP };
+
+        Value *FP = Intrinsic::getDeclaration(M, Intrinsic::restrict, TysP);
+        CallInst *RP = CallInst::Create(FP, ArgsP, "rp");
+        InsertNewInstBefore(RP, I);
+        Value *FQ = Intrinsic::getDeclaration(M, Intrinsic::restrict, TysQ);
+        CallInst *RQ = CallInst::Create(FQ, ArgsQ, "rq");
+        InsertNewInstBefore(RQ, I);
+
+        I.setOperand(0, RP);
+        I.setOperand(1, RQ);
+
+        eraseInstFromFunction(*PN1);
+        eraseInstFromFunction(*PN2);
+
+        return &I;
+      }
+    }
+  }
+
   // The 'cmpxchg' instruction returns an aggregate containing the old value and
   // an i1 which indicates whether or not we successfully did the swap.
   //
