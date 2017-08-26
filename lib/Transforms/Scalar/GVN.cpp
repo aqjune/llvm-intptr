@@ -2045,10 +2045,21 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
       // If "A == B" is known true, or "A != B" is known false, then replace
       // A with B everywhere in the scope.
-      if (!Op0->getType()->isPtrOrPtrVectorTy() &&
-          ((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
-          (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE)))
-        Worklist.push_back(std::make_pair(Op0, Op1));
+      if ((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
+          (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE)) {
+        if (Op0->getType()->isPtrOrPtrVectorTy()) {
+          SmallVector<Value *, 4> Op0Bases, Op1Bases;
+          const DataLayout &DL = Root.getStart()->getModule()->
+                                  getDataLayout();
+          GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
+          GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
+          if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+              Op0Bases[0] == Op1Bases[0]) {
+            Worklist.push_back(std::make_pair(Op0, Op1));
+          }
+        } else
+          Worklist.push_back(std::make_pair(Op0, Op1));
+      }
 
       // Handle the floating point versions of equality comparisons too.
       if ((isKnownTrue && Cmp->getPredicate() == CmpInst::FCMP_OEQ) ||
