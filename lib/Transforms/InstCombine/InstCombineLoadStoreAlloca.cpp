@@ -598,7 +598,7 @@ static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
   // integers instead of any other type. We only do this when the loaded type
   // is sized and has a size exactly the same as its store size and the store
   // size is a legal integer type.
-  if (!Ty->isIntegerTy() && Ty->isSized() &&
+  if (!Ty->isIntegerTy() && !Ty->isPointerTy() && Ty->isSized() &&
       DL.isLegalInteger(DL.getTypeStoreSizeInBits(Ty)) &&
       DL.getTypeStoreSizeInBits(Ty) == DL.getTypeSizeInBits(Ty) &&
       !DL.isNonIntegralPointerType(Ty)) {
@@ -629,7 +629,7 @@ static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
   // bitwidth as the target's pointers).
   if (LI.hasOneUse())
     if (auto* CI = dyn_cast<CastInst>(LI.user_back()))
-      if (CI->isNoopCast(DL))
+      if (CI->isNoopCast(DL) && !isa<PtrToIntInst>(CI) && !isa<IntToPtrInst>(CI))
         if (!LI.isAtomic() || isSupportedAtomicType(CI->getDestTy())) {
           LoadInst *NewLoad = combineLoadToNewType(IC, LI, CI->getDestTy());
           CI->replaceAllUsesWith(NewLoad);
