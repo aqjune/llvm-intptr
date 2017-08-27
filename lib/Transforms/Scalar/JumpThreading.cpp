@@ -195,6 +195,7 @@ bool JumpThreadingPass::runImpl(Function &F, TargetLibraryInfo *TLI_,
     Changed = false;
     for (Function::iterator I = F.begin(), E = F.end(); I != E;) {
       BasicBlock *BB = &*I;
+      //DEBUG(dbgs() << "--- JYLEE : " << BB->getName () << '\n');
       // Thread all of the branches we can over this block.
       while (ProcessBlock(BB))
         Changed = true;
@@ -375,6 +376,8 @@ static Constant *getKnownConstant(Value *Val, ConstantPreference Preference) {
 bool JumpThreadingPass::ComputeValueKnownInPredecessors(
     Value *V, BasicBlock *BB, PredValueInfo &Result,
     ConstantPreference Preference, Instruction *CxtI) {
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors : " << *V << "\n");
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 1 \n");
   // This method walks up use-def chains recursively.  Because of this, we could
   // get into an infinite loop going around loops in the use-def chain.  To
   // prevent this, keep track of what (value, block) pairs we've already visited
@@ -393,6 +396,7 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
 
     return !Result.empty();
   }
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 2 \n");
 
   // If V is a non-instruction value, or an instruction in a different block,
   // then it can't be derived from a PHI.
@@ -422,6 +426,7 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
 
     return !Result.empty();
   }
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 3 \n");
 
   /// If I is a PHI node, then we know the incoming values for any constants.
   if (PHINode *PN = dyn_cast<PHINode>(I)) {
@@ -462,6 +467,7 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
 
   PredValueInfoTy LHSVals, RHSVals;
 
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 4 \n");
   // Handle some boolean conditions.
   if (I->getType()->getPrimitiveSizeInBits() == 1) {
     assert(Preference == WantInteger && "One-bit non-integer type?");
@@ -542,10 +548,12 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
   }
 
   // Handle compare with phi operand, where the PHI is defined in this block.
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 5 \n");
   if (CmpInst *Cmp = dyn_cast<CmpInst>(I)) {
     assert(Preference == WantInteger && "Compares only produce integers");
     PHINode *PN = dyn_cast<PHINode>(Cmp->getOperand(0));
     if (PN && PN->getParent() == BB) {
+      //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 5 1 \n");
       const DataLayout &DL = PN->getModule()->getDataLayout();
       // We can do this simplification if any comparisons fold to true or false.
       // See if any do.
@@ -554,18 +562,60 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
         Value *LHS = PN->getIncomingValue(i);
         Value *RHS = Cmp->getOperand(1)->DoPHITranslation(BB, PredBB);
 
+        //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 5 1 - i " << i << "\n");
+        //DEBUG(dbgs() << "\tLHS: " << *LHS << "\n");
+        //DEBUG(dbgs() << "\tRHS: " << *RHS << "\n");
         Value *Res = SimplifyCmpInst(Cmp->getPredicate(), LHS, RHS, DL);
+        //if (Res)
+        //  DEBUG(dbgs() << "\tSimplified icmp: " << *Res << "\n");
+        //else
+        //  DEBUG(dbgs() << "\tSimplified icmp: cannot simplify!\n");
         if (!Res) {
-          if (!isa<Constant>(RHS))
-            continue;
-
-          LazyValueInfo::Tristate
-            ResT = LVI->getPredicateOnEdge(Cmp->getPredicate(), LHS,
-                                           cast<Constant>(RHS), PredBB, BB,
-                                           CxtI ? CxtI : Cmp);
-          if (ResT == LazyValueInfo::Unknown)
-            continue;
-          Res = ConstantInt::get(Type::getInt1Ty(LHS->getContext()), ResT);
+          if (!isa<Constant>(RHS)) {
+            // Deal with this case:
+            //
+            // Pred:
+            //  PredCmp = icmp eq A, B
+            //  br C, .., BB
+            // BB:
+            //  PN = phi [..] , [A, Pred]
+            //  Cmp = icmp eq PN, B
+            //      <ex.1>
+            // 
+            // TODO: LazyValueInfo::getPredicateOnEdge (used after this if statement)
+            // is not good at this. It deals with
+            //
+            // Pred:
+            //  PredCmp = icmp eq A, B
+            //  br C, .., BB
+            // BB:
+            //  PN = phi [..] , [A, Pred]
+            //  Cmp = icmp eq PN, const
+            //      <ex.2>
+            // 
+            // LazyValueInfo::getPrediateOnEdge should be expanded to deal with <ex.1>
+            BranchInst *PredBr = dyn_cast<BranchInst>(PredBB->getTerminator());
+            if (PredBr && PredBr->isConditional()) {
+              if (ICmpInst *PredCmp = dyn_cast<ICmpInst>(PredBr->getCondition())) {
+                if (PredCmp->getOperand(1) == RHS &&
+                    PredCmp->getOperand(0) == LHS &&
+                    PredCmp->getPredicate() == Cmp->getPredicate()) {
+                  bool isTrueEdge = PredBr->getSuccessor(0) == BB;
+                  Res = ConstantInt::get(Type::getInt1Ty(LHS->getContext()), isTrueEdge);
+                }
+              }
+            }
+            if (!Res)
+              continue;
+          } else {
+            LazyValueInfo::Tristate
+              ResT = LVI->getPredicateOnEdge(Cmp->getPredicate(), LHS,
+                                             cast<Constant>(RHS), PredBB, BB,
+                                             CxtI ? CxtI : Cmp);
+            if (ResT == LazyValueInfo::Unknown)
+              continue;
+            Res = ConstantInt::get(Type::getInt1Ty(LHS->getContext()), ResT);
+          }
         }
 
         if (Constant *KC = getKnownConstant(Res, WantInteger))
@@ -580,6 +630,7 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
     if (isa<Constant>(Cmp->getOperand(1)) && Cmp->getType()->isIntegerTy()) {
       if (!isa<Instruction>(Cmp->getOperand(0)) ||
           cast<Instruction>(Cmp->getOperand(0))->getParent() != BB) {
+        //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 5 2 \n");
         Constant *RHSCst = cast<Constant>(Cmp->getOperand(1));
 
         for (BasicBlock *P : predecessors(BB)) {
@@ -658,6 +709,7 @@ bool JumpThreadingPass::ComputeValueKnownInPredecessors(
     for (BasicBlock *Pred : predecessors(BB))
       Result.push_back(std::make_pair(KC, Pred));
   }
+  //DEBUG(dbgs() << "JYLEE : ComputeValueKnownInPredecessors 6 \n");
 
   return !Result.empty();
 }
@@ -701,6 +753,7 @@ static bool hasAddressTakenAndUsed(BasicBlock *BB) {
 /// ProcessBlock - If there are any predecessors whose control can be threaded
 /// through to a successor, transform them now.
 bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
+  //DEBUG(dbgs() << "JYLEE : ProcessBlock : 1\n");
   // If the block is trivially dead, just return and let the caller nuke it.
   // This simplifies other transformations.
   if (pred_empty(BB) &&
@@ -729,6 +782,7 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
   if (TryToUnfoldSelectInCurrBB(BB))
     return true;
 
+  //DEBUG(dbgs() << "JYLEE : ProcessBlock : 2\n");
   // What kind of constant we're looking for.
   ConstantPreference Preference = WantInteger;
 
@@ -750,6 +804,7 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
   } else {
     return false; // Must be an invoke.
   }
+  //DEBUG(dbgs() << "JYLEE : ProcessBlock : 3\n");
 
   // Run constant folding to see if we can reduce the condition to a simple
   // constant.
@@ -795,6 +850,8 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
   }
 
   Instruction *CondInst = dyn_cast<Instruction>(Condition);
+  //DEBUG(dbgs() << "JYLEE : ProcessBlock : 4\n");
+  //DEBUG(dbgs() << "\tCondition: " << *Condition << "\n");
 
   // All the rest of our checks depend on the condition being an instruction.
   if (!CondInst) {
@@ -803,6 +860,7 @@ bool JumpThreadingPass::ProcessBlock(BasicBlock *BB) {
       return true;
     return false;
   }
+  //DEBUG(dbgs() << "JYLEE : ProcessBlock : 5\n");
 
 
   if (CmpInst *CondCmp = dyn_cast<CmpInst>(CondInst)) {
@@ -1182,11 +1240,13 @@ FindMostPopularDest(BasicBlock *BB,
 bool JumpThreadingPass::ProcessThreadableEdges(Value *Cond, BasicBlock *BB,
                                                ConstantPreference Preference,
                                                Instruction *CxtI) {
+  //DEBUG(dbgs() << "JYLEE : ProcessThreadableEdges : 1\n");
   // If threading this would thread across a loop header, don't even try to
   // thread the edge.
   if (LoopHeaders.count(BB))
     return false;
 
+  //DEBUG(dbgs() << "JYLEE : ProcessThreadableEdges : 2\n");
   PredValueInfoTy PredValues;
   if (!ComputeValueKnownInPredecessors(Cond, BB, PredValues, Preference, CxtI))
     return false;
@@ -1599,6 +1659,7 @@ bool JumpThreadingPass::ThreadEdge(BasicBlock *BB,
 
   // Threaded an edge!
   ++NumThreads;
+  //DEBUG(dbgs() << "JYLEE: After ThreadEdge(): BB: " << *BB << "\n");
   return true;
 }
 
