@@ -984,27 +984,33 @@ static Value *GetStoreValueForLoad(Value *SrcVal, unsigned Offset,
 
   IRBuilder<> Builder(InsertPt);
 
-  // Compute which bits of the stored value are being used by the load.  Convert
-  // to an integer type to start with.
-  if (SrcVal->getType()->getScalarType()->isPointerTy())
-    SrcVal = Builder.CreatePtrToInt(SrcVal,
-        DL.getIntPtrType(SrcVal->getType()));
-  if (!SrcVal->getType()->isIntegerTy())
-    SrcVal = Builder.CreateBitCast(SrcVal, IntegerType::get(Ctx, StoreSize*8));
+  // Deal with the case intptrscript/test/gvn-intptrptrint/test.ll
+  // Prevents redundant inttoptr(ptrtoint) instructions from emerging
+  if (!(SrcVal->getType()->getScalarType()->isPointerTy() &&
+        LoadTy->getScalarType()->isPointerTy() &&
+        StoreSize == LoadSize)) {
+    // Compute which bits of the stored value are being used by the load.  Convert
+    // to an integer type to start with.
+    if (SrcVal->getType()->getScalarType()->isPointerTy()) {
+      SrcVal = Builder.CreatePtrToInt(SrcVal,
+          DL.getIntPtrType(SrcVal->getType()));
+    }
+    if (!SrcVal->getType()->isIntegerTy())
+      SrcVal = Builder.CreateBitCast(SrcVal, IntegerType::get(Ctx, StoreSize*8));
 
-  // Shift the bits to the least significant depending on endianness.
-  unsigned ShiftAmt;
-  if (DL.isLittleEndian())
-    ShiftAmt = Offset*8;
-  else
-    ShiftAmt = (StoreSize-LoadSize-Offset)*8;
+    // Shift the bits to the least significant depending on endianness.
+    unsigned ShiftAmt;
+    if (DL.isLittleEndian())
+      ShiftAmt = Offset*8;
+    else
+      ShiftAmt = (StoreSize-LoadSize-Offset)*8;
 
-  if (ShiftAmt)
-    SrcVal = Builder.CreateLShr(SrcVal, ShiftAmt);
+    if (ShiftAmt)
+      SrcVal = Builder.CreateLShr(SrcVal, ShiftAmt);
 
-  if (LoadSize != StoreSize)
-    SrcVal = Builder.CreateTrunc(SrcVal, IntegerType::get(Ctx, LoadSize*8));
-
+    if (LoadSize != StoreSize)
+      SrcVal = Builder.CreateTrunc(SrcVal, IntegerType::get(Ctx, LoadSize*8));
+  }
   return CoerceAvailableValueToLoadType(SrcVal, LoadTy, Builder, DL);
 }
 
