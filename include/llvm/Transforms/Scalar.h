@@ -419,6 +419,15 @@ FunctionPass *createLowerExpectIntrinsicPass();
 
 //===----------------------------------------------------------------------===//
 //
+// LowerPCmp - This pass converts llvm.pcmp(pred,p,q) intrinsics into
+// icmp pred (restrict(p,q), restrict(q,p)) and replaces uses of p 
+// dominated by llvm.pcmp into restrict(p,q) as well as uses of q into
+// restrict(q,p).
+//
+FunctionPass *createLowerPCmpIntrinsicPass();
+
+//===----------------------------------------------------------------------===//
+//
 // PartiallyInlineLibCalls - Tries to inline the fast path of library
 // calls such as sqrt.
 //

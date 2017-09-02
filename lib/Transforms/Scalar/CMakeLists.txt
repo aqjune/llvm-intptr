@@ -39,6 +39,7 @@ add_llvm_library(LLVMScalarOpts
   LowerAtomic.cpp
   LowerExpectIntrinsic.cpp
   LowerGuardIntrinsic.cpp
+  LowerPCmpIntrinsic.cpp
   MemCpyOptimizer.cpp
   MergedLoadStoreMotion.cpp
   NaryReassociate.cpp
