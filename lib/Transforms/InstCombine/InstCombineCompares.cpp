@@ -2628,6 +2628,25 @@ Instruction *InstCombiner::foldICmpIntrinsicWithConstant(ICmpInst &Cmp,
     }
     break;
   }
+  case Intrinsic::psub: {
+    // psub(a, b) == 0  ->  a == b
+    if (*C == 0) {
+      Value *Op0 = II->getArgOperand(0);
+      Value *Op1 = II->getArgOperand(1);
+      Value *NewCmp = nullptr;
+      if (Cmp.getPredicate() == CmpInst::ICMP_EQ) {
+        NewCmp = Builder->CreateICmpEQ(Op0, Op1);
+      } else if (Cmp.getPredicate() == CmpInst::ICMP_NE) {
+        NewCmp = Builder->CreateICmpNE(Op0, Op1);
+      } // There's no other case because this function starts with
+        // Cmp.isEquality().
+      NewCmp->takeName(&Cmp);
+      replaceInstUsesWith(Cmp, NewCmp);
+      Worklist.Add(II);
+      return &Cmp;
+    }
+    break;
+  }
   default:
     break;
   }
@@ -3280,7 +3299,7 @@ Instruction *InstCombiner::foldICmpWithCastAndCast(ICmpInst &ICmp) {
 
   // Turn icmp (ptrtoint x), (ptrtoint/c) into a compare of the input if the
   // integer type is the same size as the pointer type.
-  if (LHSCI->getOpcode() == Instruction::PtrToInt &&
+  /*if (LHSCI->getOpcode() == Instruction::PtrToInt &&
       DL.getPointerTypeSizeInBits(SrcTy) == DestTy->getIntegerBitWidth()) {
     Value *RHSOp = nullptr;
     if (auto *RHSC = dyn_cast<PtrToIntOperator>(ICmp.getOperand(1))) {
@@ -3298,7 +3317,7 @@ Instruction *InstCombiner::foldICmpWithCastAndCast(ICmpInst &ICmp) {
 
     if (RHSOp)
       return new ICmpInst(ICmp.getPredicate(), LHSCIOp, RHSOp);
-  }
+  }*/
 
   // The code below only handles extension cast instructions, so far.
   // Enforce this.
