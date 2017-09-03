@@ -247,6 +247,7 @@ void PassManagerBuilder::populateFunctionPassManager(
 
   FPM.add(createCFGSimplificationPass());
   FPM.add(createSROAPass());
+  FPM.add(createLowerPCmpIntrinsicPass());
   FPM.add(createEarlyCSEPass());
   if(EnableGVNHoist)
     FPM.add(createGVNHoistPass());

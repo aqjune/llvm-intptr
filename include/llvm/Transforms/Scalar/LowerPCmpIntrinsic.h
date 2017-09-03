@@ -88,6 +88,7 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Dominators.h"
 
 namespace llvm {
 
@@ -95,6 +96,7 @@ namespace llvm {
 class LowerPCmpIntrinsicPass : public PassInfoMixin<LowerPCmpIntrinsicPass> {
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+  DominatorTree *DT;
 };
 }
 

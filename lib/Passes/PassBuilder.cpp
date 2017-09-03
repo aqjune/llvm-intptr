@@ -111,6 +111,7 @@
 #include "llvm/Transforms/Scalar/LoopUnrollPass.h"
 #include "llvm/Transforms/Scalar/LowerAtomic.h"
 #include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
+#include "llvm/Transforms/Scalar/LowerPCmpIntrinsic.h"
 #include "llvm/Transforms/Scalar/LowerGuardIntrinsic.h"
 #include "llvm/Transforms/Scalar/MemCpyOptimizer.h"
 #include "llvm/Transforms/Scalar/MergedLoadStoreMotion.h"
@@ -397,6 +398,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
   FunctionPassManager EarlyFPM(DebugLogging);
   EarlyFPM.addPass(SimplifyCFGPass());
   EarlyFPM.addPass(SROA());
+  EarlyFPM.addPass(LowerPCmpIntrinsicPass());
   EarlyFPM.addPass(EarlyCSEPass());
   EarlyFPM.addPass(LowerExpectIntrinsicPass());
   EarlyFPM.addPass(GVNHoistPass());

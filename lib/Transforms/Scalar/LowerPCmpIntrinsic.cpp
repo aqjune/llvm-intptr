@@ -94,33 +94,18 @@ using namespace llvm;
 
 #define DEBUG_TYPE "lowerpcmp"
 
-static bool LowerPCmpCmpXchgInst(AtomicCmpXchgInst *CXI) {
-  IRBuilder<> Builder(CXI);
-  Value *Ptr = CXI->getPointerOperand();
-  Value *Cmp = CXI->getCompareOperand();
-  Value *Val = CXI->getNewValOperand();
-
-  LoadInst *Orig = Builder.CreateLoad(Ptr);
-  Value *Equal = Builder.CreateICmpEQ(Orig, Cmp);
-  Value *Res = Builder.CreateSelect(Equal, Val, Orig);
-  Builder.CreateStore(Res, Ptr);
-
-  Res = Builder.CreateInsertValue(UndefValue::get(CXI->getType()), Orig, 0);
-  Res = Builder.CreateInsertValue(Res, Equal, 1);
-
-  CXI->replaceAllUsesWith(Res);
-  CXI->eraseFromParent();
-  return true;
-}
-
 static bool runOnBasicBlock(BasicBlock &BB, DominatorTree &DT) {
   bool Changed = false;
+  SmallVector<IntrinsicInst*, 4> PCmps;
   for (BasicBlock::iterator DI = BB.begin(), DE = BB.end(); DI != DE;) {
     Instruction *Inst = &*DI++;
-    IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst);
+    IntrinsicInst *II = dyn_cast<IntrinsicInst>(Inst); // PCMP
     if (!II) continue;
     if (II->getIntrinsicID() != Intrinsic::pcmp) continue;
-
+    PCmps.push_back(II);
+  }
+  for (unsigned i = 0; i < PCmps.size(); i++) {
+    IntrinsicInst *II = PCmps[i];
     IRBuilder<> Builder(II);
     uint64_t Pred = dyn_cast<ConstantInt>(II->getArgOperand(0))->
                     getUniqueInteger().getLimitedValue();
@@ -145,23 +130,33 @@ static bool runOnBasicBlock(BasicBlock &BB, DominatorTree &DT) {
     Cmp->takeName(II);
     // Replace all uses of llvm.pcmp(p,q) with icmp(restrict(p,q), restrict(q,p))!
     II->replaceAllUsesWith(Cmp);
+    II->eraseFromParent();
 
     auto replaceDominatedUsesOnly = [&DT](Value *V, Value *ReplaceTo, Instruction *Dominator) {
+      if (!ReplaceTo)
+        return;
+      SmallVector<User*, 4> Vec;
       for (auto itr = V->user_begin(), iend = V->user_end(); itr != iend; itr++) {
         Value *U = *itr;
         Instruction *IU = dyn_cast<Instruction>(U);
+        if (IU == ReplaceTo)
+          continue;
         if (!IU)
           // Is this plausible?
           continue;
-        if (DT.dominates(Dominator, IU)) {
+        if (DT.dominates(Dominator, IU))
           // replace!
-          IU->replaceUsesOfWith(V, ReplaceTo);
-        }
+          Vec.push_back(IU);
+      }
+      for (unsigned i = 0; i < Vec.size(); i++) {
+        Vec[i]->replaceUsesOfWith(V, ReplaceTo);
       }
     };
     if (ICmpInst *CmpI = dyn_cast<ICmpInst>(Cmp)) {
-      replaceDominatedUsesOnly(P, RP, CmpI);
-      replaceDominatedUsesOnly(Q, RQ, CmpI);
+      if (!isa<Constant>(P))
+        replaceDominatedUsesOnly(P, RP, CmpI);
+      if (!isa<Constant>(Q))
+        replaceDominatedUsesOnly(Q, RQ, CmpI);
     }
   }
   return Changed;
@@ -176,10 +171,10 @@ static bool lowerPCmp(Function &F, DominatorTree &DT) {
 }
 
 PreservedAnalyses LowerPCmpIntrinsicPass::run(Function &F, FunctionAnalysisManager &FAM) {
-  auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
-  if (lowerPCmp(F, DT))
-    return PreservedAnalyses::none();
-  return PreservedAnalyses::all();
+  lowerPCmp(F, *this->DT);
+  PreservedAnalyses PA;
+  PA.preserve<DominatorTreeAnalysis>();
+  return PA;
 }
 
 namespace {
@@ -193,18 +188,28 @@ public:
   bool runOnFunction(Function &F) override {
     if (skipFunction(F))
       return false;
+    
+    auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
+    
+    LowerPCmpIntrinsicPass Impl;
+    Impl.DT = &DT;
     FunctionAnalysisManager DummyFAM;
     auto PA = Impl.run(F, DummyFAM);
     return !PA.areAllPreserved();
   }
-private:
-  LowerPCmpIntrinsicPass Impl;
+  void getAnalysisUsage(AnalysisUsage &AU) const override {
+    AU.addRequired<DominatorTreeWrapperPass>();
+    AU.setPreservesCFG();
+  }
 };
 
 }
 
 char LowerPCmpIntrinsic::ID = 0;
-INITIALIZE_PASS(LowerPCmpIntrinsic, "lower-pcmp",
+INITIALIZE_PASS_BEGIN(LowerPCmpIntrinsic, "lower-pcmp",
+                "Lower pcmp intrinsics to icmp+restrict", false, false)
+INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
+INITIALIZE_PASS_END(LowerPCmpIntrinsic, "lower-pcmp",
                 "Lower pcmp intrinsics to icmp+restrict", false, false)
 
 FunctionPass *llvm::createLowerPCmpIntrinsicPass() {
