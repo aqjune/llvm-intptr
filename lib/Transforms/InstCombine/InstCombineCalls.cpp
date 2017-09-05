@@ -2860,9 +2860,9 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
       // Restricting logical pointer with respect to logical pointer
       // is identity.
       return replaceInstUsesWith(*II, P);
-    if (isa<ConstantPointerNull>(Q) || isa<ConstantPointerNull>(P))
-      // Canonical form! Instead, GVN must not replace null with
-      // other complex expression.
+    if (isa<ConstantPointerNull>(P))
+      // This is correct under the semantics that regard nullptr
+      // as Phy(L, 0).
       return replaceInstUsesWith(*II, P); // identitiy. not replace with null!
 
     // p' = gep p, i // noinbounds
