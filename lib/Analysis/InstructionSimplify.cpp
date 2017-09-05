@@ -4321,9 +4321,9 @@ static Value *SimplifyIntrinsic(Function *F, IterTy ArgBegin, IterTy ArgEnd,
       return nullptr;
     }
     case Intrinsic::restrict: {
-      if (isa<ConstantPointerNull>(LHS) || isa<ConstantPointerNull>(RHS))
-        // Canonical form! Instead, GVN must not replace null with
-        // other complex expression.
+      if (isa<ConstantPointerNull>(LHS))
+        // This is correct under the semantics that regard nullptr
+        // as Phy(L, 0).
         return LHS;
       return nullptr;
     }
