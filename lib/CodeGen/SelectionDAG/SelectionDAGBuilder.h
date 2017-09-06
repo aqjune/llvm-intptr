@@ -59,6 +59,8 @@ class MachineInstr;
 class MachineRegisterInfo;
 class MDNode;
 class MVT;
+class NewIntToPtrInst;
+class NewPtrToIntInst;
 class PHINode;
 class PtrToIntInst;
 class ReturnInst;
@@ -857,6 +859,9 @@ private:
   void visitIntToPtr(const User &I);
   void visitBitCast(const User &I);
   void visitAddrSpaceCast(const User &I);
+
+  void visitNewPtrToInt(const User &I);
+  void visitNewIntToPtr(const User &I);
 
   void visitExtractElement(const User &I);
   void visitInsertElement(const User &I);

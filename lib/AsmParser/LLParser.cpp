@@ -5167,6 +5167,8 @@ int LLParser::ParseInstruction(Instruction *&Inst, BasicBlock *BB,
   case lltok::kw_shufflevector:  return ParseShuffleVector(Inst, PFS);
   case lltok::kw_phi:            return ParsePHI(Inst, PFS);
   case lltok::kw_landingpad:     return ParseLandingPad(Inst, PFS);
+  case lltok::kw_newinttoptr:     return ParseNewIntToPtr(Inst, PFS);
+  case lltok::kw_newptrtoint:     return ParseNewPtrToInt(Inst, PFS);
   // Call.
   case lltok::kw_call:     return ParseCall(Inst, PFS, CallInst::TCK_None);
   case lltok::kw_tail:     return ParseCall(Inst, PFS, CallInst::TCK_Tail);
@@ -6061,6 +6063,46 @@ bool LLParser::ParseCall(Instruction *&Inst, PerFunctionState &PFS,
   CI->setAttributes(PAL);
   ForwardRefAttrGroups[CI] = FwdRefAttrGrps;
   Inst = CI;
+  return false;
+}
+
+/// ParseNewPtrToInt
+///   ::= newptrtoint TypeAndValue 'to' Type
+bool LLParser::ParseNewPtrToInt(Instruction *&Inst, PerFunctionState &PFS) {
+  LocTy Loc;
+  Value *Op;
+  Type *DestTy = nullptr;
+  if (ParseTypeAndValue(Op, Loc, PFS) ||
+      ParseToken(lltok::kw_to, "expected 'to' after cast value") ||
+      ParseType(DestTy))
+    return true;
+
+  if (!Op->getType()->isPointerTy() ||
+      !DestTy->isIntegerTy())
+    return Error(Loc, "invalid ptrtoint cast from '" +
+                 getTypeString(Op->getType()) + "' to '" +
+                 getTypeString(DestTy) + "'");
+  Inst = new NewPtrToIntInst(Op, DestTy);
+  return false;
+}
+
+/// ParseNewIntToPtr
+///   ::= newptrtoint TypeAndValue 'to' Type
+bool LLParser::ParseNewIntToPtr(Instruction *&Inst, PerFunctionState &PFS) {
+  LocTy Loc;
+  Value *Op;
+  Type *DestTy = nullptr;
+  if (ParseTypeAndValue(Op, Loc, PFS) ||
+      ParseToken(lltok::kw_to, "expected 'to' after cast value") ||
+      ParseType(DestTy))
+    return true;
+
+  if (!Op->getType()->isIntegerTy() ||
+      !DestTy->isPointerTy())
+    return Error(Loc, "invalid inttoptr cast from '" +
+                 getTypeString(Op->getType()) + "' to '" +
+                 getTypeString(DestTy) + "'");
+  Inst = new NewIntToPtrInst(Op, DestTy);
   return false;
 }
 

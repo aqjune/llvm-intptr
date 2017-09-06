@@ -5154,6 +5154,100 @@ public:
   }
 };
 
+//===----------------------------------------------------------------------===//
+//                              NewPtrToIntInst Class
+//===----------------------------------------------------------------------===//
+
+/// This class represents a cast from a pointer to an integer.
+class NewPtrToIntInst : public UnaryInstruction {
+protected:
+  // Note: Instruction needs to be a friend here to call cloneImpl.
+  friend class Instruction;
+
+  /// Clone an identical PtrToIntInst.
+  NewPtrToIntInst *cloneImpl() const;
+
+public:
+  /// Constructor with insert-before-instruction semantics
+  NewPtrToIntInst(
+    Value *S,                           ///< The value to be converted
+    Type *Ty,                           ///< The type to convert to
+    const Twine &NameStr = "",          ///< A name for the new instruction
+    Instruction *InsertBefore = nullptr ///< Where to insert the new instruction
+  );
+
+  /// Constructor with insert-at-end-of-block semantics
+  NewPtrToIntInst(
+    Value *S,                     ///< The value to be converted
+    Type *Ty,                     ///< The type to convert to
+    const Twine &NameStr,         ///< A name for the new instruction
+    BasicBlock *InsertAtEnd       ///< The block to insert the instruction into
+  );
+
+  /// Gets the pointer operand.
+  Value *getPointerOperand() { return getOperand(0); }
+  /// Gets the pointer operand.
+  const Value *getPointerOperand() const { return getOperand(0); }
+  /// Gets the operand index of the pointer operand.
+  static unsigned getPointerOperandIndex() { return 0U; }
+
+  /// Returns the address space of the pointer operand.
+  unsigned getPointerAddressSpace() const {
+    return getPointerOperand()->getType()->getPointerAddressSpace();
+  }
+
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static inline bool classof(const Instruction *I) {
+    return I->getOpcode() == NewPtrToInt;
+  }
+  static inline bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
+  }
+};
+
+//===----------------------------------------------------------------------===//
+//                              NewIntToPtrInst Class
+//===----------------------------------------------------------------------===//
+
+/// This class represents a cast from an integer to a pointer.
+class NewIntToPtrInst : public UnaryInstruction {
+public:
+  // Note: Instruction needs to be a friend here to call cloneImpl.
+  friend class Instruction;
+
+  /// Constructor with insert-before-instruction semantics
+  NewIntToPtrInst(
+    Value *S,                           ///< The value to be converted
+    Type *Ty,                           ///< The type to convert to
+    const Twine &NameStr = "",          ///< A name for the new instruction
+    Instruction *InsertBefore = nullptr ///< Where to insert the new instruction
+  );
+
+  /// Constructor with insert-at-end-of-block semantics
+  NewIntToPtrInst(
+    Value *S,                     ///< The value to be converted
+    Type *Ty,                     ///< The type to convert to
+    const Twine &NameStr,         ///< A name for the new instruction
+    BasicBlock *InsertAtEnd       ///< The block to insert the instruction into
+  );
+
+  /// Clone an identical IntToPtrInst.
+  NewIntToPtrInst *cloneImpl() const;
+
+  /// Returns the address space of this instruction's pointer type.
+  unsigned getAddressSpace() const {
+    return getType()->getPointerAddressSpace();
+  }
+
+  // Methods for support type inquiry through isa, cast, and dyn_cast:
+  static inline bool classof(const Instruction *I) {
+    return I->getOpcode() == NewIntToPtr;
+  }
+  static inline bool classof(const Value *V) {
+    return isa<Instruction>(V) && classof(cast<Instruction>(V));
+  }
+};
+
 } // end namespace llvm
 
 #endif // LLVM_IR_INSTRUCTIONS_H

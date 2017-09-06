@@ -788,6 +788,9 @@ lltok::Kind LLLexer::LexIdentifier() {
   INSTKEYWORD(catchpad,     CatchPad);
   INSTKEYWORD(cleanuppad,   CleanupPad);
 
+  INSTKEYWORD(newinttoptr,  NewIntToPtr);
+  INSTKEYWORD(newptrtoint,  NewPtrToInt);
+
 #undef INSTKEYWORD
 
 #define DWKEYWORD(TYPE, TOKEN)                                                 \

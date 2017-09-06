@@ -3531,6 +3531,40 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
+    case bitc::FUNC_CODE_INST_NEWPTRTOINT: {
+      // NEWPTRTOINT: [opval, opty, destty]
+      unsigned OpNum = 0;
+      Value *Op;
+      if (getValueTypePair(Record, OpNum, NextValueNo, Op) ||
+          OpNum+1 != Record.size())
+        return error("Invalid record");
+
+      Type *ResTy = getTypeByID(Record[OpNum]);
+      if (!ResTy)
+        return error("Invalid record");
+      if (!ResTy->isIntegerTy() || !Op->getType()->isPointerTy())
+        return error("Invalid newptrtoint cast");
+      I = new NewPtrToIntInst(Op, ResTy);
+      InstructionList.push_back(I);
+      break;
+    }
+    case bitc::FUNC_CODE_INST_NEWINTTOPTR: {
+      // NEWINTTOPTR: [opval, opty, destty]
+      unsigned OpNum = 0;
+      Value *Op;
+      if (getValueTypePair(Record, OpNum, NextValueNo, Op) ||
+          OpNum+1 != Record.size())
+        return error("Invalid record");
+
+      Type *ResTy = getTypeByID(Record[OpNum]);
+      if (!ResTy)
+        return error("Invalid record");
+      if (!ResTy->isPointerTy() || !Op->getType()->isIntegerTy())
+        return error("Invalid newinttoptr cast");
+      I = new NewIntToPtrInst(Op, ResTy);
+      InstructionList.push_back(I);
+      break;
+    }
     case bitc::FUNC_CODE_INST_INBOUNDS_GEP_OLD:
     case bitc::FUNC_CODE_INST_GEP_OLD:
     case bitc::FUNC_CODE_INST_GEP: { // GEP: type, [n x operands]
