@@ -2814,6 +2814,16 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     pushValue(I.getOperand(0), InstID, Vals);                   // valist.
     Vals.push_back(VE.getTypeID(I.getType())); // restype.
     break;
+  case Instruction::NewPtrToInt: {
+    Code = bitc::FUNC_CODE_INST_NEWPTRTOINT;
+    pushValueAndType(I.getOperand(0), InstID, Vals);
+    Vals.push_back(VE.getTypeID(I.getType()));
+  }
+  case Instruction::NewIntToPtr: {
+    Code = bitc::FUNC_CODE_INST_NEWINTTOPTR;
+    pushValueAndType(I.getOperand(0), InstID, Vals);
+    Vals.push_back(VE.getTypeID(I.getType()));
+  }
   }
 
   Stream.EmitRecord(Code, Vals, AbbrevToUse);

@@ -2938,6 +2938,26 @@ void SelectionDAGBuilder::visitAddrSpaceCast(const User &I) {
   setValue(&I, N);
 }
 
+// Copied from visitPtrToInt.
+void SelectionDAGBuilder::visitNewPtrToInt(const User &I) {
+  // What to do depends on the size of the integer and the size of the pointer.
+  // We can either truncate, zero extend, or no-op, accordingly.
+  SDValue N = getValue(I.getOperand(0));
+  EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
+                                                        I.getType());
+  setValue(&I, DAG.getZExtOrTrunc(N, getCurSDLoc(), DestVT));
+}
+
+// Copied from visitIntToPtr.
+void SelectionDAGBuilder::visitNewIntToPtr(const User &I) {
+  // What to do depends on the size of the integer and the size of the pointer.
+  // We can either truncate, zero extend, or no-op, accordingly.
+  SDValue N = getValue(I.getOperand(0));
+  EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
+                                                        I.getType());
+  setValue(&I, DAG.getZExtOrTrunc(N, getCurSDLoc(), DestVT));
+}
+
 void SelectionDAGBuilder::visitInsertElement(const User &I) {
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   SDValue InVec = getValue(I.getOperand(0));

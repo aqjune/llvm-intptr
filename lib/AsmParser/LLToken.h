@@ -291,6 +291,9 @@ enum Kind {
   kw_select,
   kw_va_arg,
 
+  kw_newinttoptr,
+  kw_newptrtoint,
+
   kw_landingpad,
   kw_personality,
   kw_cleanup,

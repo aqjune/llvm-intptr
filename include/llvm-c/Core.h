@@ -134,7 +134,11 @@ typedef enum {
   LLVMCatchRet       = 62,
   LLVMCatchPad       = 63,
   LLVMCleanupPad     = 64,
-  LLVMCatchSwitch    = 65
+  LLVMCatchSwitch    = 65,
+
+  /* Instructions for new memory semantics */
+  LLVMNewIntToPtr    = 66,
+  LLVMNewPtrToInt    = 67
 } LLVMOpcode;
 
 typedef enum {
@@ -1237,7 +1241,9 @@ LLVMTypeRef LLVMX86MMXType(void);
           macro(ZExtInst)                   \
         macro(ExtractValueInst)             \
         macro(LoadInst)                     \
-        macro(VAArgInst)
+        macro(VAArgInst)                    \
+        macro(NewIntToPtrInst)              \
+        macro(NewPtrToIntInst)              \
 
 /**
  * @defgroup LLVMCCoreValueGeneral General APIs

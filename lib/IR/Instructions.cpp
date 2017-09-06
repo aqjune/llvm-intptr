@@ -3296,6 +3296,34 @@ AddrSpaceCastInst::AddrSpaceCastInst(
 }
 
 //===----------------------------------------------------------------------===//
+//                        NewPtrToInt/NewIntToPtr Classes
+//===----------------------------------------------------------------------===//
+
+NewPtrToIntInst::NewPtrToIntInst(
+  Value *S, Type *Ty, const Twine &Name, Instruction *InsertBefore
+) : UnaryInstruction(Ty, NewPtrToInt, S, InsertBefore) {
+  setName(Name);
+}
+
+NewPtrToIntInst::NewPtrToIntInst(
+  Value *S, Type *Ty, const Twine &Name, BasicBlock *InsertAtEnd
+) : UnaryInstruction(Ty, NewPtrToInt, S, InsertAtEnd) {
+  setName(Name);
+}
+
+NewIntToPtrInst::NewIntToPtrInst(
+  Value *S, Type *Ty, const Twine &Name, Instruction *InsertBefore
+) : UnaryInstruction(Ty, NewIntToPtr, S, InsertBefore) {
+  setName(Name);
+}
+
+NewIntToPtrInst::NewIntToPtrInst(
+  Value *S, Type *Ty, const Twine &Name, BasicBlock *InsertAtEnd
+) : UnaryInstruction(Ty, NewIntToPtr, S, InsertAtEnd) {
+  setName(Name);
+}
+
+//===----------------------------------------------------------------------===//
 //                               CmpInst Classes
 //===----------------------------------------------------------------------===//
 
@@ -3915,6 +3943,14 @@ BitCastInst *BitCastInst::cloneImpl() const {
 
 AddrSpaceCastInst *AddrSpaceCastInst::cloneImpl() const {
   return new AddrSpaceCastInst(getOperand(0), getType());
+}
+
+NewPtrToIntInst *NewPtrToIntInst::cloneImpl() const {
+  return new NewPtrToIntInst(getOperand(0), getType());
+}
+
+NewIntToPtrInst *NewIntToPtrInst::cloneImpl() const {
+  return new NewIntToPtrInst(getOperand(0), getType());
 }
 
 CallInst *CallInst::cloneImpl() const {
