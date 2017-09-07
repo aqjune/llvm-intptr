@@ -299,6 +299,9 @@ public:
   Instruction *visitLandingPadInst(LandingPadInst &LI);
   Instruction *visitVAStartInst(VAStartInst &I);
   Instruction *visitVACopyInst(VACopyInst &I);
+  Instruction *visitCaptureInst(CaptureInst &GEP);
+  Instruction *visitNewPtrToIntInst(NewPtrToIntInst &NPTI);
+  Instruction *visitNewIntToPtrInst(NewIntToPtrInst &NITP);
 
   /// Specify what to return for unhandled instructions.
   Instruction *visitInstruction(Instruction &I) { return nullptr; }

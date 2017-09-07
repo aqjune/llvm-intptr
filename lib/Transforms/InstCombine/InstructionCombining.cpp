@@ -1376,6 +1376,55 @@ Value *InstCombiner::SimplifyVectorOp(BinaryOperator &Inst) {
   return nullptr;
 }
 
+Instruction *InstCombiner::visitCaptureInst(CaptureInst &Cap) {
+  Value *PtrOp = Cap.getOperand(0);
+  // We don't need to capture a block several times
+  // 10: capture ptr
+  // 20: capture ptr
+  // ->
+  // 10: capture ptr
+  for (auto itr = PtrOp->user_begin(); itr != PtrOp->user_end(); itr++) {
+    Value *User = *itr;
+    CaptureInst *UserCap = dyn_cast<CaptureInst>(User);
+    if (UserCap) {
+      if (UserCap == &Cap) continue;
+      if (DT.dominates(UserCap, &Cap)) {
+        return eraseInstFromFunction(Cap);
+      }
+    }
+  }
+	// capture (inttoptr p) -> none
+  if (isa<NewIntToPtrInst>(PtrOp))
+    return eraseInstFromFunction(Cap);
+  
+  SmallVector<Value *, 4> PBases;
+  GetUnderlyingObjects(PtrOp, PBases, DL, nullptr, 6);
+  if (PBases.size() == 1 && PtrOp != PBases[0]) {
+    Cap.setOperand(0, PBases[0]);
+    return &Cap;
+  }
+
+  return nullptr;
+}
+
+Instruction *InstCombiner::visitNewPtrToIntInst(NewPtrToIntInst &NPTI) {
+  Value *Op = NPTI.getOperand(0);
+  if (Value *V = SimplifyNewPtrToIntInst(Op, NPTI.getType()))
+    return replaceInstUsesWith(NPTI, V);
+  if (BitCastInst *BCI = dyn_cast<BitCastInst>(Op)) {
+    Type *SrcTy = BCI->getSrcTy();
+    Value *NewV = Builder->CreateNewPtrToInt(BCI->getOperand(0),
+        NPTI.getType(), NPTI.getName() + ".2");
+    return replaceInstUsesWith(NPTI, NewV);
+  }
+  return nullptr;
+}
+Instruction *InstCombiner::visitNewIntToPtrInst(NewIntToPtrInst &NITP) {
+  if (Value *V = SimplifyNewIntToPtrInst(NITP.getOperand(0), NITP.getType()))
+    return replaceInstUsesWith(NITP, V);
+  return nullptr;
+}
+
 Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   SmallVector<Value*, 8> Ops(GEP.op_begin(), GEP.op_end());
 

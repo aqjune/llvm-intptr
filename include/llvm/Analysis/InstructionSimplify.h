@@ -238,6 +238,12 @@ namespace llvm {
                                     AssumptionCache *AC = nullptr,
                                     const Instruction *CxtI = nullptr);
 
+  /// Given an operand for NewPtrToIntInst, fold the result or return null.
+  Value *SimplifyNewPtrToIntInst(Value *PtrOp, Type *DestTy);
+
+  /// Given an operand for NewIntToPtrInst, fold the result or return null.
+  Value *SimplifyNewIntToPtrInst(Value *IntOp, Type *DestTy);
+
   /// Given operands for a CastInst, fold the result or return null.
   Value *SimplifyCastInst(unsigned CastOpc, Value *Op, Type *Ty,
                           const DataLayout &DL,

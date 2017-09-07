@@ -3963,6 +3963,18 @@ Value *llvm::SimplifyExtractElementInst(
                                       RecursionLimit);
 }
 
+Value *llvm::SimplifyNewPtrToIntInst(Value *Op, Type *DestTy) {
+  if (isa<ConstantPointerNull>(Op))
+    return ConstantInt::get(DestTy, 0);
+  else if (NewIntToPtrInst *NITP = dyn_cast<NewIntToPtrInst>(Op))
+    return NITP->getOperand(0);
+  return nullptr;
+}
+
+Value *llvm::SimplifyNewIntToPtrInst(Value *IntOp, Type *DestTy) {
+  return nullptr;
+}
+
 /// See if we can fold the given phi. If not, returns null.
 static Value *SimplifyPHINode(PHINode *PN, const Query &Q) {
   // If all of the PHI's incoming values are the same then replace the PHI node
@@ -4527,6 +4539,12 @@ Value *llvm::SimplifyInstruction(Instruction *I, const DataLayout &DL,
         EEI->getVectorOperand(), EEI->getIndexOperand(), DL, TLI, DT, AC, I);
     break;
   }
+  case Instruction::NewPtrToInt:
+    Result = SimplifyNewPtrToIntInst(I->getOperand(0), I->getType());
+    break;
+  case Instruction::NewIntToPtr:
+    Result = SimplifyNewIntToPtrInst(I->getOperand(0), I->getType());
+    break;
   case Instruction::PHI:
     Result = SimplifyPHINode(cast<PHINode>(I), Query(DL, TLI, DT, AC, I));
     break;
