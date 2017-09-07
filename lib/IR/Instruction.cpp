@@ -346,6 +346,7 @@ const char *Instruction::getOpcodeName(unsigned OpCode) {
   case CleanupPad:     return "cleanuppad";
   case NewIntToPtr:      return "newinttoptr";
   case NewPtrToInt:      return "newptrtoint";
+  case Capture:        return "capture";
 
   default: return "<Invalid operator> ";
   }

@@ -2843,11 +2843,18 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Code = bitc::FUNC_CODE_INST_NEWPTRTOINT;
     pushValueAndType(I.getOperand(0), InstID, Vals);
     Vals.push_back(VE.getTypeID(I.getType()));
+    break;
   }
   case Instruction::NewIntToPtr: {
     Code = bitc::FUNC_CODE_INST_NEWINTTOPTR;
     pushValueAndType(I.getOperand(0), InstID, Vals);
     Vals.push_back(VE.getTypeID(I.getType()));
+    break;
+  }
+  case Instruction::Capture: {
+    Code = bitc::FUNC_CODE_INST_CAPTURE;
+    pushValueAndType(I.getOperand(0), InstID, Vals);
+    break;
   }
   }
 

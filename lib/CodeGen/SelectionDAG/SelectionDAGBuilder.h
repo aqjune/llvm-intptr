@@ -862,6 +862,7 @@ private:
 
   void visitNewPtrToInt(const User &I);
   void visitNewIntToPtr(const User &I);
+  void visitCapture(const User &I);
 
   void visitExtractElement(const User &I);
   void visitInsertElement(const User &I);

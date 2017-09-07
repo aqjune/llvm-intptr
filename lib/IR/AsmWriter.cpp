@@ -3194,7 +3194,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
     if (AddrSpace != 0) {
       Out << ", addrspace(" << AddrSpace << ')';
     }
-  } else if (isa<CastInst>(I)) {
+  } else if (isa<CastInst>(I) || isa<NewPtrToIntInst>(I) || isa<NewIntToPtrInst>(I)) {
     if (Operand) {
       Out << ' ';
       writeOperand(Operand, true);   // Work with broken code
