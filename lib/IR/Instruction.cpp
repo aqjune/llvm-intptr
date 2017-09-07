@@ -495,6 +495,8 @@ bool Instruction::mayReadFromMemory() const {
   case Instruction::AtomicRMW:
   case Instruction::CatchPad:
   case Instruction::CatchRet:
+  case Instruction::NewIntToPtr:
+  case Instruction::NewPtrToInt:
     return true;
   case Instruction::Call:
     return !cast<CallInst>(this)->doesNotAccessMemory();
@@ -515,6 +517,7 @@ bool Instruction::mayWriteToMemory() const {
   case Instruction::AtomicRMW:
   case Instruction::CatchPad:
   case Instruction::CatchRet:
+  case Instruction::Capture:
     return true;
   case Instruction::Call:
     return !cast<CallInst>(this)->onlyReadsMemory();
