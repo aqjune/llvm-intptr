@@ -3296,7 +3296,7 @@ AddrSpaceCastInst::AddrSpaceCastInst(
 }
 
 //===----------------------------------------------------------------------===//
-//                        NewPtrToInt/NewIntToPtr Classes
+//                        NewPtrToInt/NewIntToPtr/Capture Classes
 //===----------------------------------------------------------------------===//
 
 NewPtrToIntInst::NewPtrToIntInst(
@@ -3320,6 +3320,18 @@ NewIntToPtrInst::NewIntToPtrInst(
 NewIntToPtrInst::NewIntToPtrInst(
   Value *S, Type *Ty, const Twine &Name, BasicBlock *InsertAtEnd
 ) : UnaryInstruction(Ty, NewIntToPtr, S, InsertAtEnd) {
+  setName(Name);
+}
+
+CaptureInst::CaptureInst(LLVMContext &C, Value *S,
+  const Twine &Name, Instruction *InsertBefore
+) : UnaryInstruction(Type::getVoidTy(C), Capture, S, InsertBefore) {
+  setName(Name);
+}
+
+CaptureInst::CaptureInst(LLVMContext &C, Value *S,
+  const Twine &Name, BasicBlock *InsertAtEnd
+) : UnaryInstruction(Type::getVoidTy(C), Capture, S, InsertAtEnd) {
   setName(Name);
 }
 
@@ -3951,6 +3963,10 @@ NewPtrToIntInst *NewPtrToIntInst::cloneImpl() const {
 
 NewIntToPtrInst *NewIntToPtrInst::cloneImpl() const {
   return new NewIntToPtrInst(getOperand(0), getType());
+}
+
+CaptureInst *CaptureInst::cloneImpl() const {
+  return new CaptureInst(getContext(), getOperand(0));
 }
 
 CallInst *CallInst::cloneImpl() const {

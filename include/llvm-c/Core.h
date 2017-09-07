@@ -138,7 +138,8 @@ typedef enum {
 
   /* Instructions for new memory semantics */
   LLVMNewIntToPtr    = 66,
-  LLVMNewPtrToInt    = 67
+  LLVMNewPtrToInt    = 67,
+  LLVMCapture        = 68
 } LLVMOpcode;
 
 typedef enum {
@@ -1244,6 +1245,7 @@ LLVMTypeRef LLVMX86MMXType(void);
         macro(VAArgInst)                    \
         macro(NewIntToPtrInst)              \
         macro(NewPtrToIntInst)              \
+        macro(CaptureInst)                  \
 
 /**
  * @defgroup LLVMCCoreValueGeneral General APIs

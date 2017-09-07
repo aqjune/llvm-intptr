@@ -293,6 +293,7 @@ enum Kind {
 
   kw_newinttoptr,
   kw_newptrtoint,
+  kw_capture,
 
   kw_landingpad,
   kw_personality,

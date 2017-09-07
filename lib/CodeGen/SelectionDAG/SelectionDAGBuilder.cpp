@@ -2958,6 +2958,10 @@ void SelectionDAGBuilder::visitNewIntToPtr(const User &I) {
   setValue(&I, DAG.getZExtOrTrunc(N, getCurSDLoc(), DestVT));
 }
 
+void SelectionDAGBuilder::visitCapture(const User &I) {
+  // Do nothing!
+}
+
 void SelectionDAGBuilder::visitInsertElement(const User &I) {
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   SDValue InVec = getValue(I.getOperand(0));
