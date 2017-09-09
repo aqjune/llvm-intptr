@@ -741,7 +741,8 @@ static Value *CoerceAvailableValueToLoadType(Value *StoredVal, Type *LoadedTy,
       // Convert source pointers to integers, which can be bitcast.
       if (StoredValTy->getScalarType()->isPointerTy()) {
         StoredValTy = DL.getIntPtrType(StoredValTy);
-        StoredVal = IRB.CreatePtrToInt(StoredVal, StoredValTy);
+        IRB.CreateCapture(StoredVal);
+        StoredVal = IRB.CreateNewPtrToInt(StoredVal, StoredValTy);
       }
 
       Type *TypeToCastTo = LoadedTy;
@@ -753,7 +754,7 @@ static Value *CoerceAvailableValueToLoadType(Value *StoredVal, Type *LoadedTy,
 
       // Cast to pointer if the load needs a pointer type.
       if (LoadedTy->getScalarType()->isPointerTy())
-        StoredVal = IRB.CreateIntToPtr(StoredVal, LoadedTy);
+        StoredVal = IRB.CreateNewIntToPtr(StoredVal, LoadedTy);
     }
 
     if (auto *C = dyn_cast<ConstantExpr>(StoredVal))
@@ -772,7 +773,8 @@ static Value *CoerceAvailableValueToLoadType(Value *StoredVal, Type *LoadedTy,
   // Convert source pointers to integers, which can be manipulated.
   if (StoredValTy->getScalarType()->isPointerTy()) {
     StoredValTy = DL.getIntPtrType(StoredValTy);
-    StoredVal = IRB.CreatePtrToInt(StoredVal, StoredValTy);
+    IRB.CreateCapture(StoredVal);
+    StoredVal = IRB.CreateNewPtrToInt(StoredVal, StoredValTy);
   }
 
   // Convert vectors and fp to integer, which can be manipulated.
@@ -796,7 +798,7 @@ static Value *CoerceAvailableValueToLoadType(Value *StoredVal, Type *LoadedTy,
   if (LoadedTy != NewIntTy) {
     // If the result is a pointer, inttoptr.
     if (LoadedTy->getScalarType()->isPointerTy())
-      StoredVal = IRB.CreateIntToPtr(StoredVal, LoadedTy, "inttoptr");
+      StoredVal = IRB.CreateNewIntToPtr(StoredVal, LoadedTy, "inttoptr");
     else
       // Otherwise, bitcast.
       StoredVal = IRB.CreateBitCast(StoredVal, LoadedTy, "bitcast");
@@ -992,7 +994,8 @@ static Value *GetStoreValueForLoad(Value *SrcVal, unsigned Offset,
     // Compute which bits of the stored value are being used by the load.  Convert
     // to an integer type to start with.
     if (SrcVal->getType()->getScalarType()->isPointerTy()) {
-      SrcVal = Builder.CreatePtrToInt(SrcVal,
+      Builder.CreateCapture(SrcVal);
+      SrcVal = Builder.CreateNewPtrToInt(SrcVal,
           DL.getIntPtrType(SrcVal->getType()));
     }
     if (!SrcVal->getType()->isIntegerTy())
