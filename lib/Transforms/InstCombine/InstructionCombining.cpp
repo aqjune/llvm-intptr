@@ -1714,20 +1714,20 @@ Instruction *InstCombiner::visitGetElementPtrInst(GetElementPtrInst &GEP) {
         // to (inttoptr (sub (ptrtoint X), (ptrtoint Y)))
         // The GEP pattern is emitted by the SCEV expander for certain kinds of
         // pointer arithmetic.
-        if (match(V, m_Neg(m_PtrToInt(m_Value())))) {
-          Operator *Index = cast<Operator>(V);
-          Value *PtrToInt = Builder.CreatePtrToInt(PtrOp, Index->getType());
-          Value *NewSub = Builder.CreateSub(PtrToInt, Index->getOperand(1));
-          return CastInst::Create(Instruction::IntToPtr, NewSub, GEP.getType());
-        }
+        //if (match(V, m_Neg(m_PtrToInt(m_Value())))) {
+        //  Operator *Index = cast<Operator>(V);
+        //  Value *PtrToInt = Builder.CreatePtrToInt(PtrOp, Index->getType());
+        //  Value *NewSub = Builder.CreateSub(PtrToInt, Index->getOperand(1));
+        //  return CastInst::Create(Instruction::IntToPtr, NewSub, GEP.getType());
+        //}
         // Canonicalize (gep i8* X, (ptrtoint Y)-(ptrtoint X))
         // to (bitcast Y)
-        Value *Y;
-        if (match(V, m_Sub(m_PtrToInt(m_Value(Y)),
-                           m_PtrToInt(m_Specific(GEP.getOperand(0)))))) {
-          return CastInst::CreatePointerBitCastOrAddrSpaceCast(Y,
-                                                               GEP.getType());
-        }
+        //Value *Y;
+        //if (match(V, m_Sub(m_PtrToInt(m_Value(Y)),
+        //                   m_PtrToInt(m_Specific(GEP.getOperand(0)))))) {
+        //  return CastInst::CreatePointerBitCastOrAddrSpaceCast(Y,
+        //                                                       GEP.getType());
+        //}
       }
     }
   }

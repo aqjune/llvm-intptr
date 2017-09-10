@@ -859,6 +859,7 @@ getAsConstantIndexedAddress(Value *V, const DataLayout &DL) {
       }
       break;
     }
+    /*
     if (auto *CI = dyn_cast<IntToPtrInst>(V)) {
       if (!CI->isNoopCast(DL))
         break;
@@ -871,6 +872,7 @@ getAsConstantIndexedAddress(Value *V, const DataLayout &DL) {
       V = CI->getOperand(0);
       continue;
     }
+    */
     break;
   }
   return {V, Index};
@@ -1807,16 +1809,16 @@ Instruction *InstCombiner::foldICmpOrConstant(ICmpInst &Cmp, BinaryOperator *Or,
     return nullptr;
 
   Value *P, *Q;
-  if (match(Or, m_Or(m_PtrToInt(m_Value(P)), m_PtrToInt(m_Value(Q))))) {
+  //if (match(Or, m_Or(m_PtrToInt(m_Value(P)), m_PtrToInt(m_Value(Q))))) {
     // Simplify icmp eq (or (ptrtoint P), (ptrtoint Q)), 0
     // -> and (icmp eq P, null), (icmp eq Q, null).
-    Value *CmpP =
-        Builder.CreateICmp(Pred, P, ConstantInt::getNullValue(P->getType()));
-    Value *CmpQ =
-        Builder.CreateICmp(Pred, Q, ConstantInt::getNullValue(Q->getType()));
-    auto BOpc = Pred == CmpInst::ICMP_EQ ? Instruction::And : Instruction::Or;
-    return BinaryOperator::Create(BOpc, CmpP, CmpQ);
-  }
+  //  Value *CmpP =
+  //      Builder.CreateICmp(Pred, P, ConstantInt::getNullValue(P->getType()));
+  //  Value *CmpQ =
+  //      Builder.CreateICmp(Pred, Q, ConstantInt::getNullValue(Q->getType()));
+  //  auto BOpc = Pred == CmpInst::ICMP_EQ ? Instruction::And : Instruction::Or;
+  //  return BinaryOperator::Create(BOpc, CmpP, CmpQ);
+  //}
 
   // Are we using xors to bitwise check for a pair of (in)equalities? Convert to
   // a shorter form that has more potential to be folded even further.
