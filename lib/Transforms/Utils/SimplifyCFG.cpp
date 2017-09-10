@@ -995,7 +995,7 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(TerminatorInst *TI,
     TerminatorInst *PTI = Pred->getTerminator();
     Value *PCV = isValueEqualityComparison(PTI); // PredCondVal
 
-    if (PCV == CV && TI != PTI) {
+    if (PCV == CV && TI != PTI && !PCV->getType()->isPointerTy()) {
       SmallSetVector<BasicBlock*, 4> FailBlocks;
       if (!SafeToMergeTerminators(TI, PTI, &FailBlocks)) {
         for (auto *Succ : FailBlocks) {
@@ -1149,12 +1149,30 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(TerminatorInst *TI,
       Builder.SetInsertPoint(PTI);
       // Convert pointer to int before we switch.
       // NOTE: This should be unreachable now.
-      if (CV->getType()->isPointerTy()) {
-        assert ("Unreachable!" && false);
-        Builder.CreateCapture(CV);
-        CV = Builder.CreateNewPtrToInt(CV, DL.getIntPtrType(CV->getType()),
-                                    "magicptr");
-      }
+      // This code basically tries to do this kind of thing:        
+      //
+      // PTI block:
+      // while.cond:
+      //  %cmp = icmp eq %struct._list* %current.0, null
+      //  br i1 %cmp, label %while.end, label %while.body
+      // TI block:
+      // while.end:
+      //  %cmp2 = icmp eq %struct._list* %current.0, null
+      //  br i1 %cmp2, label %if.then3, label %if.end4
+      //
+      // into:
+      // while.cond:
+      //  %magicptr = ptrtoint %struct._list* %current.0 to i64
+      //  switch i64 %magicptr, label %while.body [
+      //    i64 0, label %if.then3
+      //  ]
+      //
+      // I inserted `!PCV->getType()->isPointerTy()' at line 995,
+      // so this branch should not be executed.
+      // if (CV->getType()->isPointerTy()) {
+      //   CV = Builder.CreatePtrToInt(CV, DL.getIntPtrType(CV->getType()),
+      //                               "magicptr");
+      // }
 
       // Now that the successors are updated, create the new Switch instruction.
       SwitchInst *NewSI =
