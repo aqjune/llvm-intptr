@@ -1693,16 +1693,16 @@ Instruction *InstCombiner::visitIntToPtr(IntToPtrInst &CI) {
   // If the source integer type is not the intptr_t type for this target, do a
   // trunc or zext to the intptr_t type, then inttoptr of it.  This allows the
   // cast to be exposed to other transforms.
-  unsigned AS = CI.getAddressSpace();
-  if (CI.getOperand(0)->getType()->getScalarSizeInBits() !=
-      DL.getPointerSizeInBits(AS)) {
-    Type *Ty = DL.getIntPtrType(CI.getContext(), AS);
-    if (CI.getType()->isVectorTy()) // Handle vectors of pointers.
-      Ty = VectorType::get(Ty, CI.getType()->getVectorNumElements());
+  //unsigned AS = CI.getAddressSpace();
+  //if (CI.getOperand(0)->getType()->getScalarSizeInBits() !=
+  //    DL.getPointerSizeInBits(AS)) {
+  //  Type *Ty = DL.getIntPtrType(CI.getContext(), AS);
+  //  if (CI.getType()->isVectorTy()) // Handle vectors of pointers.
+  //    Ty = VectorType::get(Ty, CI.getType()->getVectorNumElements());
 
-    Value *P = Builder.CreateZExtOrTrunc(CI.getOperand(0), Ty);
-    return new IntToPtrInst(P, CI.getType());
-  }
+  //  Value *P = Builder.CreateZExtOrTrunc(CI.getOperand(0), Ty);
+  //  return new IntToPtrInst(P, CI.getType());
+  //}
 
   if (Instruction *I = commonCastTransforms(CI))
     return I;
@@ -1746,12 +1746,13 @@ Instruction *InstCombiner::visitPtrToInt(PtrToIntInst &CI) {
   if (Ty->getScalarSizeInBits() == DL.getPointerSizeInBits(AS))
     return commonPointerCastTransforms(CI);
 
-  Type *PtrTy = DL.getIntPtrType(CI.getContext(), AS);
-  if (Ty->isVectorTy()) // Handle vectors of pointers.
-    PtrTy = VectorType::get(PtrTy, Ty->getVectorNumElements());
+  // Type *PtrTy = DL.getIntPtrType(CI.getContext(), AS);
+  // if (Ty->isVectorTy()) // Handle vectors of pointers.
+  //   PtrTy = VectorType::get(PtrTy, Ty->getVectorNumElements());
 
-  Value *P = Builder.CreatePtrToInt(CI.getOperand(0), PtrTy);
-  return CastInst::CreateIntegerCast(P, Ty, /*isSigned=*/false);
+  //Value *P = Builder.CreatePtrToInt(CI.getOperand(0), PtrTy);
+  //return CastInst::CreateIntegerCast(P, Ty, /*isSigned=*/false);
+  return nullptr;
 }
 
 /// This input value (which is known to have vector type) is being zero extended

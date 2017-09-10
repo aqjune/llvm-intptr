@@ -1723,31 +1723,35 @@ static Value *convertValue(const DataLayout &DL, IRBuilderTy &IRB, Value *V,
   if (OldTy->isIntOrIntVectorTy() && NewTy->isPtrOrPtrVectorTy()) {
     // Expand <2 x i32> to i8* --> <2 x i32> to i64 to i8*
     if (OldTy->isVectorTy() && !NewTy->isVectorTy())
-      return IRB.CreateIntToPtr(IRB.CreateBitCast(V, DL.getIntPtrType(NewTy)),
+      return IRB.CreateNewIntToPtr(IRB.CreateBitCast(V, DL.getIntPtrType(NewTy)),
                                 NewTy);
 
     // Expand i128 to <2 x i8*> --> i128 to <2 x i64> to <2 x i8*>
     if (!OldTy->isVectorTy() && NewTy->isVectorTy())
-      return IRB.CreateIntToPtr(IRB.CreateBitCast(V, DL.getIntPtrType(NewTy)),
+      return IRB.CreateNewIntToPtr(IRB.CreateBitCast(V, DL.getIntPtrType(NewTy)),
                                 NewTy);
 
-    return IRB.CreateIntToPtr(V, NewTy);
+    return IRB.CreateNewIntToPtr(V, NewTy);
   }
 
   // See if we need ptrtoint for this type pair. A cast involving both scalars
   // and vectors requires and additional bitcast.
   if (OldTy->isPtrOrPtrVectorTy() && NewTy->isIntOrIntVectorTy()) {
     // Expand <2 x i8*> to i128 --> <2 x i8*> to <2 x i64> to i128
-    if (OldTy->isVectorTy() && !NewTy->isVectorTy())
-      return IRB.CreateBitCast(IRB.CreatePtrToInt(V, DL.getIntPtrType(OldTy)),
+    if (OldTy->isVectorTy() && !NewTy->isVectorTy()) {
+      IRB.CreateCapture(V);
+      return IRB.CreateBitCast(IRB.CreateNewPtrToInt(V, DL.getIntPtrType(OldTy)),
                                NewTy);
+    }
 
     // Expand i8* to <2 x i32> --> i8* to i64 to <2 x i32>
-    if (!OldTy->isVectorTy() && NewTy->isVectorTy())
-      return IRB.CreateBitCast(IRB.CreatePtrToInt(V, DL.getIntPtrType(OldTy)),
+    if (!OldTy->isVectorTy() && NewTy->isVectorTy()) {
+      IRB.CreateCapture(V);
+      return IRB.CreateBitCast(IRB.CreateNewPtrToInt(V, DL.getIntPtrType(OldTy)),
                                NewTy);
-
-    return IRB.CreatePtrToInt(V, NewTy);
+    }
+    IRB.CreateCapture(V);
+    return IRB.CreateNewPtrToInt(V, NewTy);
   }
 
   return IRB.CreateBitCast(V, NewTy);
