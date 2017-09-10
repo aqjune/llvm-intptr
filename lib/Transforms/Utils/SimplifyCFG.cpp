@@ -698,13 +698,13 @@ Value *SimplifyCFGOpt::isValueEqualityComparison(TerminatorInst *TI) {
       }
 
   // Unwrap any lossless ptrtoint cast.
-  if (CV) {
-    if (PtrToIntInst *PTII = dyn_cast<PtrToIntInst>(CV)) {
-      Value *Ptr = PTII->getPointerOperand();
-      if (PTII->getType() == DL.getIntPtrType(Ptr->getType()))
-        CV = Ptr;
-    }
-  }
+  //if (CV) {
+  //  if (PtrToIntInst *PTII = dyn_cast<PtrToIntInst>(CV)) {
+  //    Value *Ptr = PTII->getPointerOperand();
+  //    if (PTII->getType() == DL.getIntPtrType(Ptr->getType()))
+  //      CV = Ptr;
+  //  }
+  //}
   return CV;
 }
 
@@ -1148,8 +1148,11 @@ bool SimplifyCFGOpt::FoldValueComparisonIntoPredecessors(TerminatorInst *TI,
 
       Builder.SetInsertPoint(PTI);
       // Convert pointer to int before we switch.
+      // NOTE: This should be unreachable now.
       if (CV->getType()->isPointerTy()) {
-        CV = Builder.CreatePtrToInt(CV, DL.getIntPtrType(CV->getType()),
+        assert ("Unreachable!" && false);
+        Builder.CreateCapture(CV);
+        CV = Builder.CreateNewPtrToInt(CV, DL.getIntPtrType(CV->getType()),
                                     "magicptr");
       }
 
@@ -3681,7 +3684,8 @@ static bool SimplifyBranchOnICmpChain(BranchInst *BI, IRBuilder<> &Builder,
   Builder.SetInsertPoint(BI);
   // Convert pointer to int before we switch.
   if (CompVal->getType()->isPointerTy()) {
-    CompVal = Builder.CreatePtrToInt(
+    Builder.CreateCapture(CompVal);
+    CompVal = Builder.CreateNewPtrToInt(
         CompVal, DL.getIntPtrType(CompVal->getType()), "magicptr");
   }
 
