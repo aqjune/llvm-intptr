@@ -464,10 +464,11 @@ static Value *createCast(IRBuilder<> &Builder, Value *V, Type *DestTy) {
   }
   assert(!DestTy->isStructTy());
   if (SrcTy->isIntegerTy() && DestTy->isPointerTy())
-    return Builder.CreateIntToPtr(V, DestTy);
-  else if (SrcTy->isPointerTy() && DestTy->isIntegerTy())
-    return Builder.CreatePtrToInt(V, DestTy);
-  else
+    return Builder.CreateNewIntToPtr(V, DestTy);
+  else if (SrcTy->isPointerTy() && DestTy->isIntegerTy()) {
+    Builder.CreateCapture(V);
+    return Builder.CreateNewPtrToInt(V, DestTy);
+  } else
     return Builder.CreateBitCast(V, DestTy);
 }
 
