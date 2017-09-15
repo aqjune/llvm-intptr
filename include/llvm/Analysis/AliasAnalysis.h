@@ -504,6 +504,16 @@ public:
     return getModRefInfo(I, MemoryLocation(P, Size));
   }
 
+  ModRefInfo getModRefInfo(const CaptureInst *CI, const MemoryLocation &Loc) {
+    return MRI_ModRef;
+  }
+  ModRefInfo getModRefInfo(const NewPtrToIntInst *NPTI, const MemoryLocation &Loc) {
+    return MRI_ModRef;
+  }
+  ModRefInfo getModRefInfo(const NewIntToPtrInst *NIPI, const MemoryLocation &Loc) {
+    return MRI_ModRef;
+  }
+
   /// Check whether or not an instruction may read or write memory (without
   /// regard to a specific location).
   ///
@@ -548,6 +558,12 @@ public:
       return getModRefInfo((const CatchPadInst *)I, Loc);
     case Instruction::CatchRet:
       return getModRefInfo((const CatchReturnInst *)I, Loc);
+    case Instruction::Capture:
+      return getModRefInfo((const CaptureInst *)I, Loc);
+    case Instruction::NewPtrToInt:
+      return getModRefInfo((const NewPtrToIntInst *)I, Loc);
+    case Instruction::NewIntToPtr:
+      return getModRefInfo((const NewIntToPtrInst *)I, Loc);
     default:
       return MRI_NoModRef;
     }

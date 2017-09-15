@@ -32,6 +32,7 @@ namespace llvm {
 class AAResults;
 
 class AAEvaluator : public PassInfoMixin<AAEvaluator> {
+public:
   int64_t FunctionCount;
   int64_t NoAliasCount, MayAliasCount, PartialAliasCount, MustAliasCount;
   int64_t NoModRefCount, ModCount, RefCount, ModRefCount;
