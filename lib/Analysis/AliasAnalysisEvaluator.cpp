@@ -75,6 +75,57 @@ PrintModRefResults(const char *Msg, bool P, CallSite CSA, CallSite CSB,
 }
 
 static inline void
+PrintModRefResults(const char *Msg, bool P, Instruction *I, CallSite CSB,
+                   Module *M) {
+  if (PrintAll || P) {
+    errs() << "  " << Msg << ": " << *I
+           << " <-> " << *CSB.getInstruction() << '\n';
+  }
+}
+
+static inline void
+PrintModRefResults(const char *Msg, bool P, CallSite CSA, Instruction *I,
+                   Module *M) {
+  if (PrintAll || P) {
+    errs() << "  " << Msg << ": " << *CSA.getInstruction()
+           << " <-> " << *I << '\n';
+  }
+}
+
+static inline void
+PrintModRefResults(const char *Msg, bool P, Instruction *I1, Instruction *I2,
+                   Module *M) {
+  if (PrintAll || P) {
+    errs() << "  " << Msg << ": " << *I1
+           << " <-> " << *I2 << '\n';
+  }
+}
+
+template<class T1, class T2>
+static void PrintResAndIncrCounter(ModRefInfo MRI, T1 t1, T2 t2, Module *M,
+      AAEvaluator *AAE) {
+  switch (MRI) {
+  case MRI_NoModRef:
+    PrintModRefResults("NoModRef", PrintNoModRef, t1, t2, M);
+    ++AAE->NoModRefCount;
+    break;
+  case MRI_Mod:
+    PrintModRefResults("Just Mod", PrintMod, t1, t2, M);
+    ++AAE->ModCount;
+    break;
+  case MRI_Ref:
+    PrintModRefResults("Just Ref", PrintRef, t1, t2, M);
+    ++AAE->RefCount;
+    break;
+  case MRI_ModRef:
+    PrintModRefResults("Both ModRef", PrintModRef, t1, t2, M);
+    ++AAE->ModRefCount;
+    break;
+  }
+}
+
+
+static inline void
 PrintLoadStoreResults(const char *Msg, bool P, const Value *V1,
                       const Value *V2, const Module *M) {
   if (PrintAll || P) {
@@ -100,8 +151,9 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
 
   SetVector<Value *> Pointers;
   SmallSetVector<CallSite, 16> CallSites;
-  SetVector<Value *> Loads;
-  SetVector<Value *> Stores;
+  SetVector<Instruction *> Loads;
+  SetVector<Instruction *> Stores;
+  SetVector<Instruction *> PtrIntRelInsts;
 
   for (auto &I : F.args())
     if (I.getType()->isPointerTy())    // Add all pointer arguments.
@@ -110,11 +162,18 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
   for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
     if (I->getType()->isPointerTy()) // Add all pointer instructions.
       Pointers.insert(&*I);
-    if (EvalAAMD && isa<LoadInst>(&*I))
-      Loads.insert(&*I);
-    if (EvalAAMD && isa<StoreInst>(&*I))
-      Stores.insert(&*I);
+    
     Instruction &Inst = *I;
+    
+    if (isa<CaptureInst>(Inst) || isa<NewPtrToIntInst>(Inst)
+        || isa<NewIntToPtrInst>(Inst))
+      PtrIntRelInsts.insert(&Inst);
+    
+    if (EvalAAMD && isa<LoadInst>(Inst))
+      Loads.insert(&Inst);
+    if (EvalAAMD && isa<StoreInst>(Inst))
+      Stores.insert(&Inst);
+
     if (auto CS = CallSite(&Inst)) {
       Value *Callee = CS.getCalledValue();
       // Skip actual functions for direct function calls.
@@ -137,7 +196,8 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
   if (PrintAll || PrintNoAlias || PrintMayAlias || PrintPartialAlias ||
       PrintMustAlias || PrintNoModRef || PrintMod || PrintRef || PrintModRef)
     errs() << "Function: " << F.getName() << ": " << Pointers.size()
-           << " pointers, " << CallSites.size() << " call sites\n";
+           << " pointers, " << CallSites.size() << " call sites, "
+           << PtrIntRelInsts.size() << " ptr/int casting related insts\n";
 
   // iterate over the worklist, and run the full (n^2)/2 disambiguations
   for (SetVector<Value *>::iterator I1 = Pointers.begin(), E = Pointers.end();
@@ -204,9 +264,8 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
     }
 
     // iterate over all pairs of store, store
-    for (SetVector<Value *>::iterator I1 = Stores.begin(), E = Stores.end();
-         I1 != E; ++I1) {
-      for (SetVector<Value *>::iterator I2 = Stores.begin(); I2 != I1; ++I2) {
+    for (auto I1 = Stores.begin(), E = Stores.end(); I1 != E; ++I1) {
+      for (auto I2 = Stores.begin(); I2 != I1; ++I2) {
         switch (AA.alias(MemoryLocation::get(cast<StoreInst>(*I1)),
                          MemoryLocation::get(cast<StoreInst>(*I2)))) {
         case NoAlias:
@@ -243,6 +302,9 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
       Type *ElTy = cast<PointerType>(Pointer->getType())->getElementType();
       if (ElTy->isSized()) Size = DL.getTypeStoreSize(ElTy);
 
+      PrintResAndIncrCounter(AA.getModRefInfo(C, Pointer, Size), I, Pointer,
+                             F.getParent(), this);
+      /*
       switch (AA.getModRefInfo(C, Pointer, Size)) {
       case MRI_NoModRef:
         PrintModRefResults("NoModRef", PrintNoModRef, I, Pointer,
@@ -263,6 +325,7 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
         ++ModRefCount;
         break;
       }
+      */
     }
   }
 
@@ -271,6 +334,9 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
     for (auto D = CallSites.begin(); D != Ce; ++D) {
       if (D == C)
         continue;
+      PrintResAndIncrCounter(AA.getModRefInfo(*C, *D), *C, *D, F.getParent(),
+                             this);
+      /*
       switch (AA.getModRefInfo(*C, *D)) {
       case MRI_NoModRef:
         PrintModRefResults("NoModRef", PrintNoModRef, *C, *D, F.getParent());
@@ -289,6 +355,63 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
         ++ModRefCount;
         break;
       }
+      */
+    }
+  }
+
+  for (auto C = CallSites.begin(), Ce = CallSites.end(); C != Ce; ++C) {
+    for (auto P = PtrIntRelInsts.begin(), Pe = PtrIntRelInsts.end();
+         P != Pe; ++P) {
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*C, MemoryLocation::get(*P)),
+          *C, *P, F.getParent(), this);
+    }
+  }
+
+  for (auto I1 = Stores.begin(), E = Stores.end(); I1 != E; ++I1) {
+    for (auto P2 = PtrIntRelInsts.begin(), Pe2 = PtrIntRelInsts.end();
+         P2 != Pe2; ++P2) {
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*I1, MemoryLocation::get(*P2)),
+          *I1, *P2, F.getParent(), this);
+    }
+  }
+
+  for (auto I1 = Loads.begin(), E = Loads.end(); I1 != E; ++I1) {
+    for (auto P2 = PtrIntRelInsts.begin(), Pe2 = PtrIntRelInsts.end();
+         P2 != Pe2; ++P2) {
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*I1, MemoryLocation::get(*P2)),
+          *I1, *P2, F.getParent(), this);
+    }
+  }
+
+  for (auto P = PtrIntRelInsts.begin(), Pe = PtrIntRelInsts.end(); P != Pe;
+       ++P) {
+    for (auto C = CallSites.begin(), Ce = CallSites.end(); C != Ce; ++C) {
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*P, *C),
+          *P, *C, F.getParent(), this);
+    }
+    for (auto I1 = Stores.begin(), E = Stores.end(); I1 != E; ++I1) {
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*P, MemoryLocation::get(*I1)),
+          *P, *I1, F.getParent(), this);
+    }
+    for (auto I2 = Loads.begin(), E = Loads.end(); I2 != E; ++I2) {
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*P, MemoryLocation::get(*I2)),
+          *P, *I2, F.getParent(), this);
+    }
+  }
+  for (auto P = PtrIntRelInsts.begin(), Pe = PtrIntRelInsts.end(); P != Pe;
+       ++P) {
+    for (auto P2 = PtrIntRelInsts.begin(), Pe2 = PtrIntRelInsts.end();
+         P2 != Pe2; ++P2) {
+      if (P == P2) continue;
+      PrintResAndIncrCounter(
+          AA.getModRefInfo(*P, MemoryLocation::get(*P2)),
+          *P, *P2, F.getParent(), this);
     }
   }
 }

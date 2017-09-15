@@ -64,6 +64,18 @@ MemoryLocation MemoryLocation::get(const AtomicRMWInst *RMWI) {
                         AATags);
 }
 
+MemoryLocation MemoryLocation::get(const CaptureInst *CI) {
+  return MemoryLocation();
+}
+
+MemoryLocation MemoryLocation::get(const NewPtrToIntInst *NI) {
+  return MemoryLocation();
+}
+
+MemoryLocation MemoryLocation::get(const NewIntToPtrInst *NI) {
+  return MemoryLocation();
+}
+
 MemoryLocation MemoryLocation::getForSource(const MemTransferInst *MTI) {
   uint64_t Size = UnknownSize;
   if (ConstantInt *C = dyn_cast<ConstantInt>(MTI->getLength()))

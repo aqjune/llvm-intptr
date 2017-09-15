@@ -132,6 +132,7 @@ ModRefInfo AAResults::getArgModRefInfo(ImmutableCallSite CS, unsigned ArgIdx) {
   return Result;
 }
 
+// May I mod/ref Call's memory?
 ModRefInfo AAResults::getModRefInfo(Instruction *I, ImmutableCallSite Call) {
   // We may have two calls
   if (auto CS = ImmutableCallSite(I)) {
@@ -139,6 +140,10 @@ ModRefInfo AAResults::getModRefInfo(Instruction *I, ImmutableCallSite Call) {
     return getModRefInfo(CS, Call);
   } else if (I->isFenceLike()) {
     // If this is a fence, just return MRI_ModRef.
+    return MRI_ModRef;
+  } else if (isa<CaptureInst>(I) || isa<NewPtrToIntInst>(I) ||
+             isa<NewIntToPtrInst>(I)) {
+    // capture/newptrtoint/newinttoptr can mod/ref memory.
     return MRI_ModRef;
   } else {
     // Otherwise, check if the call modifies or references the

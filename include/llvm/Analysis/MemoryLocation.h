@@ -68,6 +68,9 @@ public:
   static MemoryLocation get(const VAArgInst *VI);
   static MemoryLocation get(const AtomicCmpXchgInst *CXI);
   static MemoryLocation get(const AtomicRMWInst *RMWI);
+  static MemoryLocation get(const CaptureInst *CI);
+  static MemoryLocation get(const NewPtrToIntInst *NI);
+  static MemoryLocation get(const NewIntToPtrInst *NI);
   static MemoryLocation get(const Instruction *Inst) {
     return *MemoryLocation::getOrNone(Inst);
   }
@@ -83,6 +86,12 @@ public:
       return get(cast<AtomicCmpXchgInst>(Inst));
     case Instruction::AtomicRMW:
       return get(cast<AtomicRMWInst>(Inst));
+    case Instruction::Capture:
+      return get(cast<CaptureInst>(Inst));
+    case Instruction::NewPtrToInt:
+      return get(cast<NewPtrToIntInst>(Inst));
+    case Instruction::NewIntToPtr:
+      return get(cast<NewIntToPtrInst>(Inst));
     default:
       return None;
     }
