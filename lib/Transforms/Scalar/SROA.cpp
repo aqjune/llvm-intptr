@@ -1739,18 +1739,15 @@ static Value *convertValue(const DataLayout &DL, IRBuilderTy &IRB, Value *V,
   if (OldTy->isPtrOrPtrVectorTy() && NewTy->isIntOrIntVectorTy()) {
     // Expand <2 x i8*> to i128 --> <2 x i8*> to <2 x i64> to i128
     if (OldTy->isVectorTy() && !NewTy->isVectorTy()) {
-      IRB.CreateCapture(V);
       return IRB.CreateBitCast(IRB.CreateNewPtrToInt(V, DL.getIntPtrType(OldTy)),
                                NewTy);
     }
 
     // Expand i8* to <2 x i32> --> i8* to i64 to <2 x i32>
     if (!OldTy->isVectorTy() && NewTy->isVectorTy()) {
-      IRB.CreateCapture(V);
       return IRB.CreateBitCast(IRB.CreateNewPtrToInt(V, DL.getIntPtrType(OldTy)),
                                NewTy);
     }
-    IRB.CreateCapture(V);
     return IRB.CreateNewPtrToInt(V, NewTy);
   }
 

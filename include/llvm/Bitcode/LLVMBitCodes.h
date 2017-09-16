@@ -499,7 +499,6 @@ enum FunctionCodes {
   FUNC_CODE_OPERAND_BUNDLE = 55, // OPERAND_BUNDLE: [tag#, value...]
   FUNC_CODE_INST_NEWPTRTOINT = 56,     // NEWPTRTOINT:     [opval, ty, ty]
   FUNC_CODE_INST_NEWINTTOPTR = 57,     // NEWINTTOPTR:     [opval, ty, ty]
-  FUNC_CODE_INST_CAPTURE = 58,              // CAPTURE:         [opval, ty]
 };
 
 enum UseListCodes {

@@ -5248,44 +5248,6 @@ public:
   }
 };
 
-//===----------------------------------------------------------------------===//
-//                                Capture Class
-//===----------------------------------------------------------------------===//
-
-/// This class represents a capture; enabling a memory block to be accessed by
-/// inttoptr operation.
-class CaptureInst : public UnaryInstruction {
-public:
-  friend class Instruction;
-
-  /// Constructor with insert-before-instruction semantics
-  CaptureInst(
-    LLVMContext &C,
-    Value *S,
-    const Twine &NameStr = "",
-    Instruction *InsertBefore = nullptr
-  );
-
-  /// Constructor with insert-at-end-of-block semantics
-  CaptureInst(
-    LLVMContext &C,
-    Value *S,
-    const Twine &NameStr,
-    BasicBlock *InsertAtEnd
-  );
-
-  /// Clone an identical IntToPtrInst.
-  CaptureInst *cloneImpl() const;
-
-  // Methods for support type inquiry through isa, cast, and dyn_cast:
-  static inline bool classof(const Instruction *I) {
-    return I->getOpcode() == Capture;
-  }
-  static inline bool classof(const Value *V) {
-    return isa<Instruction>(V) && classof(cast<Instruction>(V));
-  }
-};
-
 } // end namespace llvm
 
 #endif // LLVM_IR_INSTRUCTIONS_H

@@ -57,7 +57,6 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
       // Convert source pointers to integers, which can be bitcast.
       if (StoredValTy->isPtrOrPtrVectorTy()) {
         StoredValTy = DL.getIntPtrType(StoredValTy);
-        Helper.CreateCapture(StoredVal);
         StoredVal = Helper.CreateNewPtrToInt(StoredVal, StoredValTy);
       }
 
@@ -88,7 +87,6 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
   // Convert source pointers to integers, which can be manipulated.
   if (StoredValTy->isPtrOrPtrVectorTy()) {
     StoredValTy = DL.getIntPtrType(StoredValTy);
-    Helper.CreateCapture(StoredVal);
     StoredVal = Helper.CreateNewPtrToInt(StoredVal, StoredValTy);
   }
 
@@ -411,7 +409,6 @@ static T *getStoreValueForLoadHelper(T *SrcVal, unsigned Offset, Type *LoadTy,
   // Compute which bits of the stored value are being used by the load.  Convert
   // to an integer type to start with.
   if (SrcVal->getType()->isPtrOrPtrVectorTy()) {
-    Helper.CreateCapture(SrcVal);
     SrcVal = Helper.CreateNewPtrToInt(SrcVal, DL.getIntPtrType(SrcVal->getType()));
   }
   if (!SrcVal->getType()->isIntegerTy())

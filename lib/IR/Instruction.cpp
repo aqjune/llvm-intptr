@@ -346,7 +346,6 @@ const char *Instruction::getOpcodeName(unsigned OpCode) {
   case CleanupPad:     return "cleanuppad";
   case NewIntToPtr:      return "newinttoptr";
   case NewPtrToInt:      return "newptrtoint";
-  case Capture:        return "capture";
 
   default: return "<Invalid operator> ";
   }
@@ -517,7 +516,7 @@ bool Instruction::mayWriteToMemory() const {
   case Instruction::AtomicRMW:
   case Instruction::CatchPad:
   case Instruction::CatchRet:
-  case Instruction::Capture:
+  case Instruction::NewPtrToInt:
     return true;
   case Instruction::Call:
     return !cast<CallInst>(this)->onlyReadsMemory();

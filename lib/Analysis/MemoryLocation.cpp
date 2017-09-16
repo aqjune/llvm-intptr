@@ -64,10 +64,6 @@ MemoryLocation MemoryLocation::get(const AtomicRMWInst *RMWI) {
                         AATags);
 }
 
-MemoryLocation MemoryLocation::get(const CaptureInst *CI) {
-  return MemoryLocation();
-}
-
 MemoryLocation MemoryLocation::get(const NewPtrToIntInst *NI) {
   return MemoryLocation();
 }

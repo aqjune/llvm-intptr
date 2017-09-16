@@ -1202,10 +1202,6 @@ public:
     SI->setAlignment(Align);
     return SI;
   }
-  CaptureInst *CreateCapture(Value *Val,
-                         const Twine &Name = "") {
-    return Insert(new CaptureInst(Context, Val), Name);
-  }
   Value *CreateNewPtrToInt(Value *V, Type *DestTy,
                         const Twine &Name = "") {
     return Insert(new NewPtrToIntInst(V, DestTy), Name);

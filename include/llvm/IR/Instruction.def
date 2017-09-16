@@ -200,8 +200,7 @@ HANDLE_OTHER_INST(63, InsertValue, InsertValueInst)  // insert into aggregate
 HANDLE_OTHER_INST(64, LandingPad, LandingPadInst)  // Landing pad instruction.
 HANDLE_OTHER_INST(65, NewPtrToInt, NewPtrToIntInst)  // Pointer -> Integer
 HANDLE_OTHER_INST(66, NewIntToPtr, NewIntToPtrInst)  // Integer -> Pointer
-HANDLE_OTHER_INST(67, Capture, CaptureInst)  // capture poiner
-  LAST_OTHER_INST(67)
+  LAST_OTHER_INST(66)
 
 #undef  FIRST_TERM_INST
 #undef HANDLE_TERM_INST
