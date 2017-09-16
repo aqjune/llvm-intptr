@@ -132,8 +132,7 @@ ModRefInfo AAResults::getModRefInfo(Instruction *I, ImmutableCallSite Call) {
   } else if (I->isFenceLike()) {
     // If this is a fence, just return MRI_ModRef.
     return MRI_ModRef;
-  } else if (isa<CaptureInst>(I) || isa<NewPtrToIntInst>(I) ||
-             isa<NewIntToPtrInst>(I)) {
+  } else if (isa<NewPtrToIntInst>(I) || isa<NewIntToPtrInst>(I)) {
     // capture/newptrtoint/newinttoptr can mod/ref memory.
     return MRI_ModRef;
   } else {

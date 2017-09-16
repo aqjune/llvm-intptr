@@ -786,7 +786,6 @@ lltok::Kind LLLexer::LexIdentifier() {
 
   INSTKEYWORD(newinttoptr,  NewIntToPtr);
   INSTKEYWORD(newptrtoint,  NewPtrToInt);
-  INSTKEYWORD(capture,      Capture);
 
 #undef INSTKEYWORD
 

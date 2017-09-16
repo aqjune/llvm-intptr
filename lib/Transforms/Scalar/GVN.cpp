@@ -741,7 +741,6 @@ static Value *CoerceAvailableValueToLoadType(Value *StoredVal, Type *LoadedTy,
       // Convert source pointers to integers, which can be bitcast.
       if (StoredValTy->getScalarType()->isPointerTy()) {
         StoredValTy = DL.getIntPtrType(StoredValTy);
-        IRB.CreateCapture(StoredVal);
         StoredVal = IRB.CreateNewPtrToInt(StoredVal, StoredValTy);
       }
 

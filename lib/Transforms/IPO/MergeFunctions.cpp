@@ -456,7 +456,6 @@ static Value *createCast(IRBuilder<> &Builder, Value *V, Type *DestTy) {
   if (SrcTy->isIntegerTy() && DestTy->isPointerTy())
     return Builder.CreateNewIntToPtr(V, DestTy);
   else if (SrcTy->isPointerTy() && DestTy->isIntegerTy()) {
-    Builder.CreateCapture(V);
     return Builder.CreateNewPtrToInt(V, DestTy);
   } else
     return Builder.CreateBitCast(V, DestTy);
