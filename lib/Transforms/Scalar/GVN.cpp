@@ -772,7 +772,6 @@ static Value *CoerceAvailableValueToLoadType(Value *StoredVal, Type *LoadedTy,
   // Convert source pointers to integers, which can be manipulated.
   if (StoredValTy->getScalarType()->isPointerTy()) {
     StoredValTy = DL.getIntPtrType(StoredValTy);
-    IRB.CreateCapture(StoredVal);
     StoredVal = IRB.CreateNewPtrToInt(StoredVal, StoredValTy);
   }
 
@@ -993,7 +992,6 @@ static Value *GetStoreValueForLoad(Value *SrcVal, unsigned Offset,
     // Compute which bits of the stored value are being used by the load.  Convert
     // to an integer type to start with.
     if (SrcVal->getType()->getScalarType()->isPointerTy()) {
-      Builder.CreateCapture(SrcVal);
       SrcVal = Builder.CreateNewPtrToInt(SrcVal,
           DL.getIntPtrType(SrcVal->getType()));
     }
