@@ -2826,11 +2826,6 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Vals.push_back(VE.getTypeID(I.getType()));
     break;
   }
-  case Instruction::Capture: {
-    Code = bitc::FUNC_CODE_INST_CAPTURE;
-    pushValueAndType(I.getOperand(0), InstID, Vals);
-    break;
-  }
   }
 
   Stream.EmitRecord(Code, Vals, AbbrevToUse);

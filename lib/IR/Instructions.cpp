@@ -3955,12 +3955,6 @@ NewIntToPtrInst *NewIntToPtrInst::cloneImpl() const {
   return new NewIntToPtrInst(getOperand(0), getType());
 }
 
-/*
-CaptureInst *CaptureInst::cloneImpl() const {
-  return new CaptureInst(getContext(), getOperand(0));
-}
-*/
-
 CallInst *CallInst::cloneImpl() const {
   if (hasOperandBundles()) {
     unsigned DescriptorBytes = getNumOperandBundles() * sizeof(BundleOpInfo);

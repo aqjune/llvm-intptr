@@ -67,7 +67,6 @@ public:
   static MemoryLocation get(const VAArgInst *VI);
   static MemoryLocation get(const AtomicCmpXchgInst *CXI);
   static MemoryLocation get(const AtomicRMWInst *RMWI);
-  static MemoryLocation get(const CaptureInst *CI);
   static MemoryLocation get(const NewPtrToIntInst *NI);
   static MemoryLocation get(const NewIntToPtrInst *NI);
   static MemoryLocation get(const Instruction *Inst) {
@@ -80,8 +79,6 @@ public:
     else if (auto *I = dyn_cast<AtomicCmpXchgInst>(Inst))
       return get(I);
     else if (auto *I = dyn_cast<AtomicRMWInst>(Inst))
-      return get(I);
-    else if (auto *I = dyn_cast<CaptureInst>(Inst))
       return get(I);
     else if (auto *I = dyn_cast<NewPtrToIntInst>(Inst))
       return get(I);

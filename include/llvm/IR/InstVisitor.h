@@ -199,7 +199,6 @@ public:
   RetTy visitVAArgInst(VAArgInst   &I)            { DELEGATE(UnaryInstruction);}
   RetTy visitNewPtrToIntInst(NewPtrToIntInst &I)        { DELEGATE(UnaryInstruction);}
   RetTy visitNewIntToPtrInst(NewIntToPtrInst &I)        { DELEGATE(UnaryInstruction);}
-  RetTy visitCaptureInst(CaptureInst &I)        { DELEGATE(UnaryInstruction);}
   RetTy visitExtractElementInst(ExtractElementInst &I) { DELEGATE(Instruction);}
   RetTy visitInsertElementInst(InsertElementInst &I) { DELEGATE(Instruction);}
   RetTy visitShuffleVectorInst(ShuffleVectorInst &I) { DELEGATE(Instruction);}

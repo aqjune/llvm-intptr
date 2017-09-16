@@ -3365,20 +3365,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
-    case bitc::FUNC_CODE_INST_CAPTURE: {
-      // NEWCAPTURE: [opval, opty]
-      unsigned OpNum = 0;
-      Value *Op;
-      if (getValueTypePair(Record, OpNum, NextValueNo, Op) ||
-          OpNum != Record.size())
-        return error("Invalid record");
-
-      if (!Op->getType()->isPointerTy())
-        return error("Invalid capture");
-      I = new CaptureInst(Context, Op);
-      InstructionList.push_back(I);
-      break;
-    }
     case bitc::FUNC_CODE_INST_INBOUNDS_GEP_OLD:
     case bitc::FUNC_CODE_INST_GEP_OLD:
     case bitc::FUNC_CODE_INST_GEP: { // GEP: type, [n x operands]
