@@ -72,7 +72,8 @@ public:
     StructTyID,      ///< 13: Structures
     ArrayTyID,       ///< 14: Arrays
     PointerTyID,     ///< 15: Pointers
-    VectorTyID       ///< 16: SIMD 'packed' format, or other vector type
+    VectorTyID,      ///< 16: SIMD 'packed' format, or other vector type
+    CharTyID,        ///< 17: New 'char' type
   };
 
 private:
@@ -218,6 +219,8 @@ public:
   /// True if this is an instance of VectorType.
   bool isVectorTy() const { return getTypeID() == VectorTyID; }
 
+  bool isCharTy() const { return getTypeID() == CharTyID; }
+
   /// Return true if this type could be converted with a lossless BitCast to
   /// type 'Ty'. For example, i8* to i32*. BitCasts are valid for types of the
   /// same size only where no re-interpretation of the bits is done.
@@ -238,7 +241,7 @@ public:
   /// includes all first-class types except struct and array types.
   bool isSingleValueType() const {
     return isFloatingPointTy() || isX86_MMXTy() || isIntegerTy() ||
-           isPointerTy() || isVectorTy();
+           isPointerTy() || isVectorTy() || isCharTy();
   }
 
   /// Return true if the type is an aggregate type. This means it is valid as
@@ -254,7 +257,7 @@ public:
   bool isSized(SmallPtrSetImpl<Type*> *Visited = nullptr) const {
     // If it's a primitive, it is always sized.
     if (getTypeID() == IntegerTyID || isFloatingPointTy() ||
-        getTypeID() == PointerTyID ||
+        getTypeID() == PointerTyID || getTypeID() == CharTyID ||
         getTypeID() == X86_MMXTyID)
       return true;
     // If it is not something that can have a size (e.g. a function or label),
@@ -385,6 +388,7 @@ public:
   static Type *getPPC_FP128Ty(LLVMContext &C);
   static Type *getX86_MMXTy(LLVMContext &C);
   static Type *getTokenTy(LLVMContext &C);
+  static Type *getCharTy(LLVMContext &C);
   static IntegerType *getIntNTy(LLVMContext &C, unsigned N);
   static IntegerType *getInt1Ty(LLVMContext &C);
   static IntegerType *getInt8Ty(LLVMContext &C);

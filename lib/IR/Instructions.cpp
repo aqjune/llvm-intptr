@@ -2304,7 +2304,9 @@ bool CastInst::isLosslessCast() const {
 /// no code gen is necessary for the cast, hence the name no-op cast.  For 
 /// example, the following are all no-op casts:
 /// # bitcast i32* %x to i8*
-/// # bitcast <2 x i32> %x to <4 x i16> 
+/// # bitcast <2 x i32> %x to <4 x i16>
+/// # bitcast i64 %x to <2 x i32>
+/// # bitcast char %x to i8
 /// # ptrtoint i32* %x to i32     ; on 32-bit plaforms only
 /// @brief Determine if the described cast is a no-op.
 bool CastInst::isNoopCast(Instruction::CastOps Opcode,
@@ -3096,8 +3098,9 @@ CastInst::castIsValid(Instruction::CastOps op, Value *S, Type *DstTy) {
 
     // BitCast implies a no-op cast of type only. No bits change.
     // However, you can't cast pointers to anything but pointers.
-    if (!SrcPtrTy != !DstPtrTy)
+    if (!SrcPtrTy != !DstPtrTy) {
       return false;
+    }
 
     // For non-pointer cases, the cast is okay if the source and destination bit
     // widths are identical.

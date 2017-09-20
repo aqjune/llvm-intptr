@@ -661,6 +661,7 @@ unsigned DataLayout::getAlignment(Type *Ty, bool abi_or_pref) const {
     unsigned Align = getAlignmentInfo(AGGREGATE_ALIGN, 0, abi_or_pref, Ty);
     return std::max(Align, Layout->getAlignment());
   }
+  case Type::CharTyID:
   case Type::IntegerTyID:
     AlignType = INTEGER_ALIGN;
     break;

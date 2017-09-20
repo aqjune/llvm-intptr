@@ -34,7 +34,7 @@ TEST(TypeBuilderTest, HostIntegers) {
   LLVMContext Context;
   EXPECT_EQ(Type::getInt8Ty(Context),
             (TypeBuilder<int8_t, false>::get(Context)));
-  EXPECT_EQ(Type::getInt8Ty(Context),
+  EXPECT_EQ(Type::getCharTy(Context),
             (TypeBuilder<uint8_t, false>::get(Context)));
   EXPECT_EQ(Type::getInt16Ty(Context),
             (TypeBuilder<int16_t, false>::get(Context)));

@@ -1477,6 +1477,9 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_TOKEN:     // TOKEN
       ResultTy = Type::getTokenTy(Context);
       break;
+    case bitc::TYPE_CODE_CHAR:      // CHAR
+      ResultTy = Type::getCharTy(Context);
+      break;
     case bitc::TYPE_CODE_INTEGER: { // INTEGER: [width]
       if (Record.size() < 1)
         return error("Invalid record");
