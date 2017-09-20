@@ -98,6 +98,30 @@ unsigned Type::getIntegerBitWidth() const {
   return cast<IntegerType>(this)->getBitWidth();
 }
 
+/// Class to represent char types.
+class CharType : public Type {
+  friend class LLVMContextImpl;
+
+protected:
+  explicit CharType(LLVMContext &C) : Type(C, CharTyID){
+  }
+
+public:
+
+  /// This static method is the primary way of constructing an CharType.
+  /// If a CharType value was previously instantiated,
+  /// that instance will be returned. Otherwise a new one will be created.
+  static CharType *get(LLVMContext &C);
+
+  /// @brief Get the number of bits in this IntegerType
+  unsigned getBitWidth() const { return 8; }
+
+  /// Methods for support type inquiry through isa, cast, and dyn_cast.
+  static inline bool classof(const Type *T) {
+    return T->getTypeID() == CharTyID;
+  }
+};
+
 /// Class to represent function types
 ///
 class FunctionType : public Type {

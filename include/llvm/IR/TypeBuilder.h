@@ -98,6 +98,9 @@ class fp128 {};
 class ppc_fp128 {};
 // X86 MMX.
 class x86_mmx {};
+
+// char type
+class chr {};
 }  // namespace types
 
 // LLVM doesn't have const or volatile types.
@@ -167,9 +170,9 @@ template<> class TypeBuilder<T, true> { \
   /* We provide a definition here so users don't accidentally */ \
   /* define these types to work. */ \
 }
-DEFINE_INTEGRAL_TYPEBUILDER(char);
+//DEFINE_INTEGRAL_TYPEBUILDER(char);
 DEFINE_INTEGRAL_TYPEBUILDER(signed char);
-DEFINE_INTEGRAL_TYPEBUILDER(unsigned char);
+//DEFINE_INTEGRAL_TYPEBUILDER(unsigned char);
 DEFINE_INTEGRAL_TYPEBUILDER(short);
 DEFINE_INTEGRAL_TYPEBUILDER(unsigned short);
 DEFINE_INTEGRAL_TYPEBUILDER(int);
@@ -190,6 +193,30 @@ class TypeBuilder<types::i<num_bits>, cross> {
 public:
   static IntegerType *get(LLVMContext &C) {
     return IntegerType::get(C, num_bits);
+  }
+};
+
+template<> class TypeBuilder<char, true> {};
+template<> class TypeBuilder<char, false> {
+public:
+  static CharType *get(LLVMContext &C) {
+    return CharType::get(C);
+  }
+};
+
+template<> class TypeBuilder<unsigned char, true> {};
+template<> class TypeBuilder<unsigned char, false> {
+public:
+  static CharType *get(LLVMContext &C) {
+    return CharType::get(C);
+  }
+};
+
+template<bool cross>
+class TypeBuilder<types::chr, cross> {
+public:
+  static CharType *get(LLVMContext &C) {
+    return CharType::get(C);
   }
 };
 

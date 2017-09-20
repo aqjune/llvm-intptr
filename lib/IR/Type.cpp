@@ -123,6 +123,7 @@ unsigned Type::getPrimitiveSizeInBits() const {
   case Type::X86_MMXTyID: return 64;
   case Type::IntegerTyID: return cast<IntegerType>(this)->getBitWidth();
   case Type::VectorTyID:  return cast<VectorType>(this)->getBitWidth();
+  case Type::CharTyID: return 8;
   default: return 0;
   }
 }
@@ -169,6 +170,7 @@ Type *Type::getX86_FP80Ty(LLVMContext &C) { return &C.pImpl->X86_FP80Ty; }
 Type *Type::getFP128Ty(LLVMContext &C) { return &C.pImpl->FP128Ty; }
 Type *Type::getPPC_FP128Ty(LLVMContext &C) { return &C.pImpl->PPC_FP128Ty; }
 Type *Type::getX86_MMXTy(LLVMContext &C) { return &C.pImpl->X86_MMXTy; }
+Type *Type::getCharTy(LLVMContext &C) { return &C.pImpl->CharTy; }
 
 IntegerType *Type::getInt1Ty(LLVMContext &C) { return &C.pImpl->Int1Ty; }
 IntegerType *Type::getInt8Ty(LLVMContext &C) { return &C.pImpl->Int8Ty; }
@@ -325,6 +327,14 @@ bool FunctionType::isValidReturnType(Type *RetTy) {
 
 bool FunctionType::isValidArgumentType(Type *ArgTy) {
   return ArgTy->isFirstClassType();
+}
+
+//===----------------------------------------------------------------------===//
+//                         CharType Implementation
+//===----------------------------------------------------------------------===//
+
+CharType *CharType::get(LLVMContext &Context) {
+  return cast<CharType>(Type::getCharTy(Context));
 }
 
 //===----------------------------------------------------------------------===//

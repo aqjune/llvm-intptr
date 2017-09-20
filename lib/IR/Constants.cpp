@@ -235,6 +235,10 @@ Constant *Constant::getNullValue(Type *Ty) {
     return ConstantAggregateZero::get(Ty);
   case Type::TokenTyID:
     return ConstantTokenNone::get(Ty->getContext());
+  case Type::CharTyID:
+    return ConstantExpr::getBitCast(
+        ConstantInt::get(IntegerType::get(Ty->getContext(), 8), 0),
+        Ty);
   default:
     // Function, Label, or Opaque type?
     llvm_unreachable("Cannot create a null constant of that type!");
