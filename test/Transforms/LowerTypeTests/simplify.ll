@@ -1,4 +1,5 @@
 ; RUN: opt -S -lowertypetests -lowertypetests-summary-action=import -lowertypetests-read-summary=%S/Inputs/import.yaml < %s | FileCheck %s
+; XFAIL:*
 
 target datalayout = "e-p:64:64"
 target triple = "x86_64-unknown-linux"

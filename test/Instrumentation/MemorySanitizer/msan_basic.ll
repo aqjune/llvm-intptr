@@ -798,7 +798,7 @@ cond.end:                                         ; preds = %cond.false, %cond.t
 }
 
 ; CHECK: [[A:%.*]] = phi i32 [ undef, %cond.true ], [ undef, %cond.false ]
-; CHECK: store i32 0, i32* bitcast {{.*}} @__msan_retval_tls
+; CHECK: store i32 0, i32* inttoptr (i64 ptrtoint ({{.*}} @__msan_retval_tls
 ; CHECK: ret i32 [[A]]
 
 

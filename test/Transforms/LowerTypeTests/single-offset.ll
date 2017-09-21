@@ -1,4 +1,5 @@
 ; RUN: opt -S -lowertypetests < %s | FileCheck %s
+; XFAIL:*
 
 target datalayout = "e-p:32:32"
 

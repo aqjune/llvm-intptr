@@ -17,7 +17,8 @@ define <2 x i32> @test1() {
 ; CHECK: %v3 = inttoptr <2 x i32> %v2 to <2 x i8*>
 ; CHECK: %v4 = bitcast <2 x i32>* %v1 to <2 x i8*>*
 ; CHECK: store <2 x i8*> %v3, <2 x i8*>* %v4
-; CHECK: ret <2 x i32> %v2
+; CHECK: %1 = newptrtoint <2 x i8*> %v3 to <2 x i32>
+; CHECK: ret <2 x i32> %1
 }
 
 declare void @anything(<2 x i32>*)

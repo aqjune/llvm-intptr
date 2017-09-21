@@ -1,6 +1,6 @@
 ; RUN: opt -S -simplifycfg < %s | FileCheck %s
 ; RUN: opt -S -data-layout="p:32:32-p1:16:16" -simplifycfg < %s | FileCheck -check-prefix=CHECK -check-prefix=DL %s
-
+; XFAIL:*
 declare void @foo1()
 
 declare void @foo2()

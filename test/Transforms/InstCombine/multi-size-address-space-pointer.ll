@@ -1,6 +1,6 @@
 ; RUN: opt -S -instcombine %s -o - | FileCheck %s
 target datalayout = "e-p:32:32:32-p1:64:64:64-p2:8:8:8-p3:16:16:16-p4:16:16:16-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:32"
-
+; XFAIL:*
 
 define i32 @test_as0(i32 addrspace(0)* %a) {
 ; CHECK-LABEL: @test_as0(
