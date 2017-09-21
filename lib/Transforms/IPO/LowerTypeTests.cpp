@@ -592,7 +592,6 @@ Value *LowerTypeTestsModule::lowerTypeTestCall(Metadata *TypeId, CallInst *CI,
 
   IRBuilder<> B(CI);
 
-  B.CreateCapture(Ptr);
   Value *PtrAsInt = B.CreateNewPtrToInt(Ptr, IntPtrTy);
 
   Constant *OffsetedGlobalAsInt =

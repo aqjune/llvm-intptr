@@ -3702,7 +3702,6 @@ static bool SimplifyBranchOnICmpChain(BranchInst *BI, IRBuilder<> &Builder,
   Builder.SetInsertPoint(BI);
   // Convert pointer to int before we switch.
   if (CompVal->getType()->isPointerTy()) {
-    Builder.CreateCapture(CompVal);
     CompVal = Builder.CreateNewPtrToInt(
         CompVal, DL.getIntPtrType(CompVal->getType()), "magicptr");
   }
