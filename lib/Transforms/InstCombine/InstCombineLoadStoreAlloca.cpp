@@ -982,7 +982,7 @@ Instruction *InstCombiner::visitLoadInst(LoadInst &LI) {
       combineMetadataForCSE(cast<LoadInst>(AvailableVal), &LI);
 
     return replaceInstUsesWith(
-        LI, Builder.CreateBitOrPointerCast(AvailableVal, LI.getType(),
+        LI, Builder.CreateBitCast(AvailableVal, LI.getType(),
                                            LI.getName() + ".cast"));
   }
 

@@ -1247,6 +1247,7 @@ bool JumpThreadingPass::SimplifyPartiallyRedundantLoad(LoadInst *LI) {
     // only happen in dead loops.
     if (AvailableVal == LI) AvailableVal = UndefValue::get(LI->getType());
     if (AvailableVal->getType() != LI->getType())
+      // Int->Ptr or Ptr->Int casting cannot happen.
       AvailableVal =
           CastInst::CreateBitOrPointerCast(AvailableVal, LI->getType(), "", LI);
     LI->replaceAllUsesWith(AvailableVal);
@@ -1406,6 +1407,7 @@ bool JumpThreadingPass::SimplifyPartiallyRedundantLoad(LoadInst *LI) {
     // predecessor use the same bitcast.
     Value *&PredV = I->second;
     if (PredV->getType() != LI->getType())
+      // Int->Ptr or Ptr->Int cannot happen.
       PredV = CastInst::CreateBitOrPointerCast(PredV, LI->getType(), "",
                                                P->getTerminator());
 
