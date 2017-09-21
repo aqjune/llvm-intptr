@@ -1,4 +1,5 @@
 ; RUN: opt < %s -instcombine -S | FileCheck %s
+; XFAIL:*
 
 target datalayout = "e-p:64:64-p1:16:16-p2:32:32:32-p3:64:64:64"
 

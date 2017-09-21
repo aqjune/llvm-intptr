@@ -54,7 +54,7 @@ define i8* @propagate_nonnull_to_int() {
 ; CHECK-NEXT:    %[[A:.*]] = alloca i64
 ; CHECK-NEXT:    store i64 42, i64* %[[A]]
 ; CHECK-NEXT:    %[[LOAD:.*]] = load volatile i64, i64* %[[A]]
-; CHECK-NEXT:    %[[CAST:.*]] = inttoptr i64 %[[LOAD]] to i8*
+; CHECK-NEXT:    %[[CAST:.*]] = newinttoptr i64 %[[LOAD]] to i8*
 ; CHECK-NEXT:    ret i8* %[[CAST]]
 entry:
   %a = alloca [2 x i8*]
@@ -75,7 +75,7 @@ entry:
 define i8* @propagate_nonnull_to_int_and_promote() {
 ; CHECK-LABEL: define i8* @propagate_nonnull_to_int_and_promote(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    %[[PROMOTED_VALUE:.*]] = inttoptr i64 42 to i8*
+; CHECK-NEXT:    %[[PROMOTED_VALUE:.*]] = newinttoptr i64 42 to i8*
 ; CHECK-NEXT:    ret i8* %[[PROMOTED_VALUE]]
 entry:
   %a = alloca [2 x i8*], align 8

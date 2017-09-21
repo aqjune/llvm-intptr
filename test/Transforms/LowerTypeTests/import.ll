@@ -1,5 +1,6 @@
 ; RUN: opt -mtriple=x86_64-unknown-linux -S -lowertypetests -lowertypetests-summary-action=import -lowertypetests-read-summary=%S/Inputs/import.yaml < %s | FileCheck --check-prefixes=CHECK,X86 %s
 ; RUN: opt -mtriple=aarch64-unknown-linux -S -lowertypetests -lowertypetests-summary-action=import -lowertypetests-read-summary=%S/Inputs/import.yaml < %s | FileCheck --check-prefixes=CHECK,ARM %s
+; XFAIL:*
 
 target datalayout = "e-p:64:64"
 

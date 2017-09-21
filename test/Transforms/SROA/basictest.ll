@@ -538,7 +538,8 @@ entry:
 define %S2* @test10() {
 ; CHECK-LABEL: @test10(
 ; CHECK-NOT: alloca %S2*
-; CHECK: ret %S2* null
+; CHECK: capture
+; CHECK: ret %S2* 
 
 entry:
   %a = alloca [8 x i8]

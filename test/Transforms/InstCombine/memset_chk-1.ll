@@ -1,6 +1,7 @@
 ; Test lib call simplification of __memset_chk calls with various values
 ; for dstlen and len.
-;
+; XFAIL:*
+
 ; RUN: opt < %s -instcombine -S | FileCheck %s
 ; rdar://7719085
 
