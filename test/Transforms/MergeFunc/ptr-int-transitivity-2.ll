@@ -12,7 +12,6 @@ entry:
 }
 
 ; CHECK-LABEL: @f0
-; CHECK:  capture i64* %0
 ; CHECK:  %2 = newptrtoint i64* %0 to i64
 ; CHECK:  tail call void @f0(i64 %2)
 ; CHECK:  ret void
