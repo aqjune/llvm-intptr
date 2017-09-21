@@ -538,7 +538,6 @@ entry:
 define %S2* @test10() {
 ; CHECK-LABEL: @test10(
 ; CHECK-NOT: alloca %S2*
-; CHECK: capture
 ; CHECK: ret %S2* 
 
 entry:

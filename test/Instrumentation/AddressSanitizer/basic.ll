@@ -9,7 +9,7 @@ target triple = "x86_64-unknown-linux-gnu"
 define i32 @test_load(i32* %a) sanitize_address {
 ; CHECK-LABEL: @test_load
 ; CHECK-NOT: load
-; CHECK:   %[[LOAD_ADDR:[^ ]*]] = ptrtoint i32* %a to i64
+; CHECK:   %[[LOAD_ADDR:[^ ]*]] = newptrtoint i32* %a to i64
 ; CHECK:   lshr i64 %[[LOAD_ADDR]], 3
 ; CHECK:   {{or|add}}
 ; CHECK:   %[[LOAD_SHADOW_PTR:[^ ]*]] = inttoptr
@@ -42,7 +42,7 @@ entry:
 define void @test_store(i32* %a) sanitize_address {
 ; CHECK-LABEL: @test_store
 ; CHECK-NOT: store
-; CHECK:   %[[STORE_ADDR:[^ ]*]] = ptrtoint i32* %a to i64
+; CHECK:   %[[STORE_ADDR:[^ ]*]] = newptrtoint i32* %a to i64
 ; CHECK:   lshr i64 %[[STORE_ADDR]], 3
 ; CHECK:   {{or|add}}
 ; CHECK:   %[[STORE_SHADOW_PTR:[^ ]*]] = inttoptr

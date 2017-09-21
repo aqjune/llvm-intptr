@@ -15,7 +15,7 @@ entry:
 ; CHECK: [[PARAM:%[01-9a-z]+]] = load {{.*}} @__msan_param_tls
 ; CHECK: [[ORIGIN:%[01-9a-z]+]] = load {{.*}} @__msan_param_origin_tls
 
-; CHECK: [[TMP1:%[01-9a-z]+]] = ptrtoint
+; CHECK: [[TMP1:%[01-9a-z]+]] = newptrtoint
 ; CHECK: [[TMP2:%[01-9a-z]+]] = xor i64 [[TMP1]]
 ; CHECK: [[TMP3:%[01-9a-z]+]] = inttoptr i64 [[TMP2]] to [2 x i64]*
 ; CHECK: store [2 x i64] [[PARAM]], [2 x i64]* [[TMP3]]

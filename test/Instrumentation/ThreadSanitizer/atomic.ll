@@ -1235,7 +1235,7 @@ entry:
 }
 ; CHECK-LABEL: atomic64_store_seq_cst
 ; CHECK: %{{.*}} = bitcast i8** %{{.*}} to i64*
-; CHECK-NEXT: %{{.*}} = ptrtoint i8* %{{.*}} to i64
+; CHECK-NEXT: %{{.*}} = newptrtoint i8* %{{.*}} to i64
 ; CHECK-NEXT: call void @__tsan_atomic64_store(i64* %{{.*}}, i64 %{{.*}}, i32 5), !dbg
 
 define void @atomic64_xchg_monotonic(i64* %a) nounwind uwtable {
@@ -1564,8 +1564,8 @@ entry:
   ret void
 }
 ; CHECK-LABEL: atomic64_cas_seq_cst
-; CHECK: {{.*}} = ptrtoint i8* %v1 to i64
-; CHECK-NEXT: {{.*}} = ptrtoint i8* %v2 to i64
+; CHECK: {{.*}} = newptrtoint i8* %v1 to i64
+; CHECK-NEXT: {{.*}} = newptrtoint i8* %v2 to i64
 ; CHECK-NEXT: {{.*}} = bitcast i8** %a to i64*
 ; CHECK-NEXT: {{.*}} = call i64 @__tsan_atomic64_compare_exchange_val(i64* {{.*}}, i64 {{.*}}, i64 {{.*}}, i32 5, i32 5), !dbg
 ; CHECK-NEXT: {{.*}} = icmp eq i64
