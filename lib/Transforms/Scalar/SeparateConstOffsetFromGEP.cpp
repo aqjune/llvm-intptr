@@ -878,7 +878,7 @@ SeparateConstOffsetFromGEP::lowerToArithmetics(GetElementPtrInst *Variadic,
         ResultPtr, ConstantInt::get(IntPtrTy, AccumulativeByteOffset));
   }
 
-  ResultPtr = Builder.CreateIntToPtr(ResultPtr, Variadic->getType());
+  ResultPtr = Builder.CreateNewIntToPtr(ResultPtr, Variadic->getType());
   Variadic->replaceAllUsesWith(ResultPtr);
   Variadic->eraseFromParent();
 }
