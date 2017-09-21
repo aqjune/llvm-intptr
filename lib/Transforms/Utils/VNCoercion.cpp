@@ -57,6 +57,101 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
       // Convert source pointers to integers, which can be bitcast.
       if (StoredValTy->isPtrOrPtrVectorTy()) {
         StoredValTy = DL.getIntPtrType(StoredValTy);
+        Helper.CreateCapture(StoredVal);
+        StoredVal = Helper.CreateNewPtrToInt(StoredVal, StoredValTy);
+      }
+
+      Type *TypeToCastTo = LoadedTy;
+      if (TypeToCastTo->isPtrOrPtrVectorTy())
+        TypeToCastTo = DL.getIntPtrType(TypeToCastTo);
+
+      if (StoredValTy != TypeToCastTo)
+        StoredVal = Helper.CreateBitCast(StoredVal, TypeToCastTo);
+
+      // Cast to pointer if the load needs a pointer type.
+      if (LoadedTy->isPtrOrPtrVectorTy())
+        StoredVal = Helper.CreateNewIntToPtr(StoredVal, LoadedTy);
+    }
+
+    if (auto *C = dyn_cast<ConstantExpr>(StoredVal))
+      if (auto *FoldedStoredVal = ConstantFoldConstant(C, DL))
+        StoredVal = FoldedStoredVal;
+
+    return StoredVal;
+  }
+  // If the loaded value is smaller than the available value, then we can
+  // extract out a piece from it.  If the available value is too small, then we
+  // can't do anything.
+  assert(StoredValSize >= LoadedValSize &&
+         "canCoerceMustAliasedValueToLoad fail");
+
+  // Convert source pointers to integers, which can be manipulated.
+  if (StoredValTy->isPtrOrPtrVectorTy()) {
+    StoredValTy = DL.getIntPtrType(StoredValTy);
+    Helper.CreateCapture(StoredVal);
+    StoredVal = Helper.CreateNewPtrToInt(StoredVal, StoredValTy);
+  }
+
+  // Convert vectors and fp to integer, which can be manipulated.
+  if (!StoredValTy->isIntegerTy()) {
+    StoredValTy = IntegerType::get(StoredValTy->getContext(), StoredValSize);
+    StoredVal = Helper.CreateBitCast(StoredVal, StoredValTy);
+  }
+
+  // If this is a big-endian system, we need to shift the value down to the low
+  // bits so that a truncate will work.
+  if (DL.isBigEndian()) {
+    uint64_t ShiftAmt = DL.getTypeStoreSizeInBits(StoredValTy) -
+                        DL.getTypeStoreSizeInBits(LoadedTy);
+    StoredVal = Helper.CreateLShr(
+        StoredVal, ConstantInt::get(StoredVal->getType(), ShiftAmt));
+  }
+
+  // Truncate the integer to the right size now.
+  Type *NewIntTy = IntegerType::get(StoredValTy->getContext(), LoadedValSize);
+  StoredVal = Helper.CreateTruncOrBitCast(StoredVal, NewIntTy);
+
+  if (LoadedTy != NewIntTy) {
+    // If the result is a pointer, inttoptr.
+    if (LoadedTy->isPtrOrPtrVectorTy())
+      StoredVal = Helper.CreateNewIntToPtr(StoredVal, LoadedTy);
+    else
+      // Otherwise, bitcast.
+      StoredVal = Helper.CreateBitCast(StoredVal, LoadedTy);
+  }
+
+  if (auto *C = dyn_cast<Constant>(StoredVal))
+    if (auto *FoldedStoredVal = ConstantFoldConstant(C, DL))
+      StoredVal = FoldedStoredVal;
+
+  return StoredVal;
+}
+
+template <>
+Constant *coerceAvailableValueToLoadTypeHelper(Constant *StoredVal, Type *LoadedTy,
+                                               ConstantFolder &Helper,
+                                               const DataLayout &DL) {
+  assert(canCoerceMustAliasedValueToLoad(StoredVal, LoadedTy, DL) &&
+         "precondition violation - materialization can't fail");
+  if (auto *C = dyn_cast<Constant>(StoredVal))
+    if (auto *FoldedStoredVal = ConstantFoldConstant(C, DL))
+      StoredVal = FoldedStoredVal;
+
+  // If this is already the right type, just return it.
+  Type *StoredValTy = StoredVal->getType();
+
+  uint64_t StoredValSize = DL.getTypeSizeInBits(StoredValTy);
+  uint64_t LoadedValSize = DL.getTypeSizeInBits(LoadedTy);
+
+  // If the store and reload are the same size, we can always reuse it.
+  if (StoredValSize == LoadedValSize) {
+    // Pointer to Pointer -> use bitcast.
+    if (StoredValTy->isPtrOrPtrVectorTy() && LoadedTy->isPtrOrPtrVectorTy()) {
+      StoredVal = Helper.CreateBitCast(StoredVal, LoadedTy);
+    } else {
+      // Convert source pointers to integers, which can be bitcast.
+      if (StoredValTy->isPtrOrPtrVectorTy()) {
+        StoredValTy = DL.getIntPtrType(StoredValTy);
         StoredVal = Helper.CreatePtrToInt(StoredVal, StoredValTy);
       }
 
@@ -315,8 +410,51 @@ static T *getStoreValueForLoadHelper(T *SrcVal, unsigned Offset, Type *LoadTy,
   uint64_t LoadSize = (DL.getTypeSizeInBits(LoadTy) + 7) / 8;
   // Compute which bits of the stored value are being used by the load.  Convert
   // to an integer type to start with.
-  if (SrcVal->getType()->isPtrOrPtrVectorTy())
+  if (SrcVal->getType()->isPtrOrPtrVectorTy()) {
+    Helper.CreateCapture(SrcVal);
+    SrcVal = Helper.CreateNewPtrToInt(SrcVal, DL.getIntPtrType(SrcVal->getType()));
+  }
+  if (!SrcVal->getType()->isIntegerTy())
+    SrcVal = Helper.CreateBitCast(SrcVal, IntegerType::get(Ctx, StoreSize * 8));
+
+  // Shift the bits to the least significant depending on endianness.
+  unsigned ShiftAmt;
+  if (DL.isLittleEndian())
+    ShiftAmt = Offset * 8;
+  else
+    ShiftAmt = (StoreSize - LoadSize - Offset) * 8;
+  if (ShiftAmt)
+    SrcVal = Helper.CreateLShr(SrcVal,
+                               ConstantInt::get(SrcVal->getType(), ShiftAmt));
+
+  if (LoadSize != StoreSize)
+    SrcVal = Helper.CreateTruncOrBitCast(SrcVal,
+                                         IntegerType::get(Ctx, LoadSize * 8));
+  return SrcVal;
+}
+
+template <>
+Constant *getStoreValueForLoadHelper(Constant *SrcVal, unsigned Offset, Type *LoadTy,
+                                     ConstantFolder &Helper,
+                                     const DataLayout &DL) {
+  LLVMContext &Ctx = SrcVal->getType()->getContext();
+
+  // If two pointers are in the same address space, they have the same size,
+  // so we don't need to do any truncation, etc. This avoids introducing
+  // ptrtoint instructions for pointers that may be non-integral.
+  if (SrcVal->getType()->isPointerTy() && LoadTy->isPointerTy() &&
+      cast<PointerType>(SrcVal->getType())->getAddressSpace() ==
+          cast<PointerType>(LoadTy)->getAddressSpace()) {
+    return SrcVal;
+  }
+
+  uint64_t StoreSize = (DL.getTypeSizeInBits(SrcVal->getType()) + 7) / 8;
+  uint64_t LoadSize = (DL.getTypeSizeInBits(LoadTy) + 7) / 8;
+  // Compute which bits of the stored value are being used by the load.  Convert
+  // to an integer type to start with.
+  if (SrcVal->getType()->isPtrOrPtrVectorTy()) {
     SrcVal = Helper.CreatePtrToInt(SrcVal, DL.getIntPtrType(SrcVal->getType()));
+  }
   if (!SrcVal->getType()->isIntegerTy())
     SrcVal = Helper.CreateBitCast(SrcVal, IntegerType::get(Ctx, StoreSize * 8));
 
