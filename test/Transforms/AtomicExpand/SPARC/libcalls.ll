@@ -206,7 +206,7 @@ define void @test_store_double(double* %arg, double %val) {
 ; CHECK:   %3 = bitcast i16** %2 to i8*
 ; CHECK:   call void @llvm.lifetime.start.p0i8(i64 4, i8* %3)
 ; CHECK:   store i16* %old, i16** %2, align 4
-; CHECK:   %4 = ptrtoint i16* %new to i32
+; CHECK:   %4 = newptrtoint i16* %new to i32
 ; CHECK:   %5 = call zeroext i1 @__atomic_compare_exchange_4(i8* %1, i8* %3, i32 %4, i32 5, i32 2)
 ; CHECK:   %6 = load i16*, i16** %2, align 4
 ; CHECK:   call void @llvm.lifetime.end.p0i8(i64 4, i8* %3)

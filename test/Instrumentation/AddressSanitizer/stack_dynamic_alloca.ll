@@ -19,7 +19,7 @@ entry:
 
 ; CHECK: <label>:[[NO_FAKE_STACK_BB:[0-9]+]]
 ; CHECK: %MyAlloca = alloca i8, i64
-; CHECK: [[ALLOCA:%[0-9]+]] = ptrtoint i8* %MyAlloca
+; CHECK: [[ALLOCA:%[0-9]+]] = newptrtoint i8* %MyAlloca
 
 ; CHECK: phi i64 [ [[FAKE_STACK]], %[[FAKE_STACK_BB]] ], [ [[ALLOCA]], %[[NO_FAKE_STACK_BB]] ]
 

@@ -24,13 +24,13 @@ define void @store.v4f32.1110(<4 x float> %arg) sanitize_address {
   %p = load <4 x float>*, <4 x float>** @v4f32, align 8
 ; NOSTORE-NOT: call void @__asan_store
 ; STORE: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 0
-; STORE: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP0]] to i64
+; STORE: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP0]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP0]])
 ; STORE: [[GEP1:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 1
-; STORE: [[PGEP1:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP1]] to i64
+; STORE: [[PGEP1:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP1]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP1]])
 ; STORE: [[GEP2:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 2
-; STORE: [[PGEP2:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP2]] to i64
+; STORE: [[PGEP2:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP2]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP2]])
 ; STORE: tail call void @llvm.masked.store.v4f32.p0v4f32(<4 x float> %arg, <4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 false>)
   tail call void @llvm.masked.store.v4f32.p0v4f32(<4 x float> %arg, <4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 false>)
@@ -42,16 +42,16 @@ define void @store.v8i32.10010110(<8 x i32> %arg) sanitize_address {
   %p = load <8 x i32>*, <8 x i32>** @v8i32, align 8
 ; NOSTORE-NOT: call void @__asan_store
 ; STORE: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 0
-; STORE: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP0]] to i64
+; STORE: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP0]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP0]])
 ; STORE: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 3
-; STORE: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP3]] to i64
+; STORE: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP3]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP3]])
 ; STORE: [[GEP5:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 5
-; STORE: [[PGEP5:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP5]] to i64
+; STORE: [[PGEP5:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP5]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP5]])
 ; STORE: [[GEP6:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 6
-; STORE: [[PGEP6:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP6]] to i64
+; STORE: [[PGEP6:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP6]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP6]])
 ; STORE: tail call void @llvm.masked.store.v8i32.p0v8i32(<8 x i32> %arg, <8 x i32>* %p, i32 8, <8 x i1> <i1 true, i1 false, i1 false, i1 true, i1 false, i1 true, i1 true, i1 false>)
   tail call void @llvm.masked.store.v8i32.p0v8i32(<8 x i32> %arg, <8 x i32>* %p, i32 8, <8 x i1> <i1 true, i1 false, i1 false, i1 true, i1 false, i1 true, i1 true, i1 false>)
@@ -63,7 +63,7 @@ define void @store.v4i64.0001(<4 x i32*> %arg) sanitize_address {
   %p = load <4 x i32*>*, <4 x i32*>** @v4i64, align 8
 ; NOSTORE-NOT: call void @__asan_store
 ; STORE: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <4 x i32*>, <4 x i32*>* %p, i64 0, i64 3
-; STORE: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint i32** [[GEP3]] to i64
+; STORE: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint i32** [[GEP3]] to i64
 ; STORE: call void @__asan_store8(i64 [[PGEP3]])
 ; STORE: tail call void @llvm.masked.store.v4p0i32.p0v4p0i32(<4 x i32*> %arg, <4 x i32*>* %p, i32 8, <4 x i1> <i1 false, i1 false, i1 false, i1 true>)
   tail call void @llvm.masked.store.v4p0i32.p0v4p0i32(<4 x i32*> %arg, <4 x i32*>* %p, i32 8, <4 x i1> <i1 false, i1 false, i1 false, i1 true>)
@@ -77,7 +77,7 @@ define void @store.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) sanitize_add
 ; STORE: br i1 [[MASK0]], label %[[THEN0:[0-9A-Za-z]+]], label %[[AFTER0:[0-9A-Za-z]+]]
 ; STORE: <label>:[[THEN0]]:
 ; STORE: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 0
-; STORE: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP0]] to i64
+; STORE: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP0]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP0]])
 ; STORE: br label %[[AFTER0]]
 ; STORE: <label>:[[AFTER0]]
@@ -86,7 +86,7 @@ define void @store.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) sanitize_add
 ; STORE: br i1 [[MASK1]], label %[[THEN1:[0-9A-Za-z]+]], label %[[AFTER1:[0-9A-Za-z]+]]
 ; STORE: <label>:[[THEN1]]:
 ; STORE: [[GEP1:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 1
-; STORE: [[PGEP1:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP1]] to i64
+; STORE: [[PGEP1:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP1]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP1]])
 ; STORE: br label %[[AFTER1]]
 ; STORE: <label>:[[AFTER1]]
@@ -95,7 +95,7 @@ define void @store.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) sanitize_add
 ; STORE: br i1 [[MASK2]], label %[[THEN2:[0-9A-Za-z]+]], label %[[AFTER2:[0-9A-Za-z]+]]
 ; STORE: <label>:[[THEN2]]:
 ; STORE: [[GEP2:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 2
-; STORE: [[PGEP2:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP2]] to i64
+; STORE: [[PGEP2:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP2]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP2]])
 ; STORE: br label %[[AFTER2]]
 ; STORE: <label>:[[AFTER2]]
@@ -104,7 +104,7 @@ define void @store.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) sanitize_add
 ; STORE: br i1 [[MASK3]], label %[[THEN3:[0-9A-Za-z]+]], label %[[AFTER3:[0-9A-Za-z]+]]
 ; STORE: <label>:[[THEN3]]:
 ; STORE: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 3
-; STORE: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP3]] to i64
+; STORE: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP3]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP3]])
 ; STORE: br label %[[AFTER3]]
 ; STORE: <label>:[[AFTER3]]
@@ -119,12 +119,12 @@ define void @store.v4f32.1010.split(<4 x float> %arg) sanitize_address {
 ; BOTH-LABEL: @store.v4f32.1010.split
   %p = load <4 x float>*, <4 x float>** @v4f32, align 8
 ; STORE: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 0
-; STORE: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP0]] to i64
+; STORE: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP0]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP0]])
 ; STORE: tail call void @llvm.masked.store.v4f32.p0v4f32(<4 x float> %arg, <4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 false, i1 false, i1 false>)
   tail call void @llvm.masked.store.v4f32.p0v4f32(<4 x float> %arg, <4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 false, i1 false, i1 false>)
 ; STORE: [[GEP1:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 2
-; STORE: [[PGEP1:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP1]] to i64
+; STORE: [[PGEP1:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP1]] to i64
 ; STORE: call void @__asan_store4(i64 [[PGEP1]])
 ; STORE: tail call void @llvm.masked.store.v4f32.p0v4f32(<4 x float> %arg, <4 x float>* %p, i32 4, <4 x i1> <i1 false, i1 false, i1 true, i1 false>)
   tail call void @llvm.masked.store.v4f32.p0v4f32(<4 x float> %arg, <4 x float>* %p, i32 4, <4 x i1> <i1 false, i1 false, i1 true, i1 false>)
@@ -135,7 +135,7 @@ define void @store.v4f32.1010.split(<4 x float> %arg) sanitize_address {
 define void @store.v4f32.0010.after.full.store(<4 x float> %arg) sanitize_address {
 ; BOTH-LABEL: @store.v4f32.0010.after.full.store
   %p = load <4 x float>*, <4 x float>** @v4f32, align 8
-; STORE: [[PTRTOINT:%[0-9A-Za-z]+]] = ptrtoint <4 x float>* %p to i64
+; STORE: [[PTRTOINT:%[0-9A-Za-z]+]] = newptrtoint <4 x float>* %p to i64
 ; STORE: call void @__asan_store16(i64 [[PTRTOINT]])
 ; STORE: store <4 x float> %arg, <4 x float>* %p
   store <4 x float> %arg, <4 x float>* %p
@@ -155,16 +155,16 @@ define <8 x i32> @load.v8i32.11100001(<8 x i32> %arg) sanitize_address {
   %p = load <8 x i32>*, <8 x i32>** @v8i32, align 8
 ; NOLOAD-NOT: call void @__asan_load
 ; LOAD: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 0
-; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP0]] to i64
+; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP0]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP0]])
 ; LOAD: [[GEP1:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 1
-; LOAD: [[PGEP1:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP1]] to i64
+; LOAD: [[PGEP1:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP1]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP1]])
 ; LOAD: [[GEP2:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 2
-; LOAD: [[PGEP2:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP2]] to i64
+; LOAD: [[PGEP2:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP2]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP2]])
 ; LOAD: [[GEP7:%[0-9A-Za-z]+]] = getelementptr <8 x i32>, <8 x i32>* %p, i64 0, i64 7
-; LOAD: [[PGEP7:%[0-9A-Za-z]+]] = ptrtoint i32* [[GEP7]] to i64
+; LOAD: [[PGEP7:%[0-9A-Za-z]+]] = newptrtoint i32* [[GEP7]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP7]])
 ; LOAD: tail call <8 x i32> @llvm.masked.load.v8i32.p0v8i32(<8 x i32>* %p, i32 8, <8 x i1> <i1 true, i1 true, i1 true, i1 false, i1 false, i1 false, i1 false, i1 true>, <8 x i32> %arg)
   %res = tail call <8 x i32> @llvm.masked.load.v8i32.p0v8i32(<8 x i32>* %p, i32 8, <8 x i1> <i1 true, i1 true, i1 true, i1 false, i1 false, i1 false, i1 false, i1 true>, <8 x i32> %arg)
@@ -176,10 +176,10 @@ define <4 x float> @load.v4f32.1001(<4 x float> %arg) sanitize_address {
   %p = load <4 x float>*, <4 x float>** @v4f32, align 8
 ; NOLOAD-NOT: call void @__asan_load
 ; LOAD: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 0
-; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP0]] to i64
+; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP0]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP0]])
 ; LOAD: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 3
-; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP3]] to i64
+; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP3]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP3]])
 ; LOAD: tail call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 false, i1 false, i1 true>, <4 x float> %arg)
   %res = tail call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 false, i1 false, i1 true>, <4 x float> %arg)
@@ -191,7 +191,7 @@ define <4 x i32*> @load.v4i64.0001(<4 x i32*> %arg) sanitize_address {
   %p = load <4 x i32*>*, <4 x i32*>** @v4i64, align 8
 ; NOLOAD-NOT: call void @__asan_load
 ; LOAD: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <4 x i32*>, <4 x i32*>* %p, i64 0, i64 3
-; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint i32** [[GEP3]] to i64
+; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint i32** [[GEP3]] to i64
 ; LOAD: call void @__asan_load8(i64 [[PGEP3]])
 ; LOAD: tail call <4 x i32*> @llvm.masked.load.v4p0i32.p0v4p0i32(<4 x i32*>* %p, i32 8, <4 x i1> <i1 false, i1 false, i1 false, i1 true>, <4 x i32*> %arg)
   %res = tail call <4 x i32*> @llvm.masked.load.v4p0i32.p0v4p0i32(<4 x i32*>* %p, i32 8, <4 x i1> <i1 false, i1 false, i1 false, i1 true>, <4 x i32*> %arg)
@@ -205,7 +205,7 @@ define <4 x float> @load.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) saniti
 ; LOAD: br i1 [[MASK0]], label %[[THEN0:[0-9A-Za-z]+]], label %[[AFTER0:[0-9A-Za-z]+]]
 ; LOAD: <label>:[[THEN0]]:
 ; LOAD: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 0
-; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP0]] to i64
+; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP0]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP0]])
 ; LOAD: br label %[[AFTER0]]
 ; LOAD: <label>:[[AFTER0]]
@@ -214,7 +214,7 @@ define <4 x float> @load.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) saniti
 ; LOAD: br i1 [[MASK1]], label %[[THEN1:[0-9A-Za-z]+]], label %[[AFTER1:[0-9A-Za-z]+]]
 ; LOAD: <label>:[[THEN1]]:
 ; LOAD: [[GEP1:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 1
-; LOAD: [[PGEP1:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP1]] to i64
+; LOAD: [[PGEP1:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP1]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP1]])
 ; LOAD: br label %[[AFTER1]]
 ; LOAD: <label>:[[AFTER1]]
@@ -223,7 +223,7 @@ define <4 x float> @load.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) saniti
 ; LOAD: br i1 [[MASK2]], label %[[THEN2:[0-9A-Za-z]+]], label %[[AFTER2:[0-9A-Za-z]+]]
 ; LOAD: <label>:[[THEN2]]:
 ; LOAD: [[GEP2:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 2
-; LOAD: [[PGEP2:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP2]] to i64
+; LOAD: [[PGEP2:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP2]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP2]])
 ; LOAD: br label %[[AFTER2]]
 ; LOAD: <label>:[[AFTER2]]
@@ -232,7 +232,7 @@ define <4 x float> @load.v4f32.variable(<4 x float> %arg, <4 x i1> %mask) saniti
 ; LOAD: br i1 [[MASK3]], label %[[THEN3:[0-9A-Za-z]+]], label %[[AFTER3:[0-9A-Za-z]+]]
 ; LOAD: <label>:[[THEN3]]:
 ; LOAD: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 3
-; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP3]] to i64
+; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP3]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP3]])
 ; LOAD: br label %[[AFTER3]]
 ; LOAD: <label>:[[AFTER3]]
@@ -247,12 +247,12 @@ define <4 x float> @load.v4f32.1001.split(<4 x float> %arg) sanitize_address {
 ; BOTH-LABEL: @load.v4f32.1001
   %p = load <4 x float>*, <4 x float>** @v4f32, align 8
 ; LOAD: [[GEP0:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 0
-; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP0]] to i64
+; LOAD: [[PGEP0:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP0]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP0]])
 ; LOAD: %res = tail call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 false, i1 false, i1 false>, <4 x float> %arg)
   %res = tail call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %p, i32 4, <4 x i1> <i1 true, i1 false, i1 false, i1 false>, <4 x float> %arg)
 ; LOAD: [[GEP3:%[0-9A-Za-z]+]] = getelementptr <4 x float>, <4 x float>* %p, i64 0, i64 3
-; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = ptrtoint float* [[GEP3]] to i64
+; LOAD: [[PGEP3:%[0-9A-Za-z]+]] = newptrtoint float* [[GEP3]] to i64
 ; LOAD: call void @__asan_load4(i64 [[PGEP3]])
 ; LOAD: tail call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %p, i32 4, <4 x i1> <i1 false, i1 false, i1 false, i1 true>, <4 x float> %res)
   %res2 = tail call <4 x float> @llvm.masked.load.v4f32.p0v4f32(<4 x float>* %p, i32 4, <4 x i1> <i1 false, i1 false, i1 false, i1 true>, <4 x float> %res)
@@ -263,7 +263,7 @@ define <4 x float> @load.v4f32.1001.split(<4 x float> %arg) sanitize_address {
 define <4 x float> @load.v4f32.1001.after.full.load(<4 x float> %arg) sanitize_address {
 ; BOTH-LABEL: @load.v4f32.1001.after.full.load
   %p = load <4 x float>*, <4 x float>** @v4f32, align 8
-; LOAD: [[PTRTOINT:%[0-9A-Za-z]+]] = ptrtoint <4 x float>* %p to i64
+; LOAD: [[PTRTOINT:%[0-9A-Za-z]+]] = newptrtoint <4 x float>* %p to i64
 ; LOAD: call void @__asan_load16(i64 [[PTRTOINT]])
 ; LOAD: %res = load <4 x float>, <4 x float>* %p
   %res = load <4 x float>, <4 x float>* %p

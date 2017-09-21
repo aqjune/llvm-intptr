@@ -11,7 +11,7 @@ entry:
   %tmp1 = load i8, i8* %a, align 1
   ret i8 %tmp1
 ; CHECK: @llvm.global_ctors = {{.*}}@esan.module_ctor
-; CHECK:        %0 = ptrtoint i8* %a to i64
+; CHECK:        %0 = newptrtoint i8* %a to i64
 ; CHECK-NEXT:   %1 = and i64 %0, 17592186044415
 ; CHECK-NEXT:   %2 = add i64 %1, 1337006139375616
 ; CHECK-NEXT:   %3 = lshr i64 %2, 6
@@ -32,7 +32,7 @@ define i16 @aligned2(i16* %a) {
 entry:
   %tmp1 = load i16, i16* %a, align 2
   ret i16 %tmp1
-; CHECK:        %0 = ptrtoint i16* %a to i64
+; CHECK:        %0 = newptrtoint i16* %a to i64
 ; CHECK-NEXT:   %1 = and i64 %0, 17592186044415
 ; CHECK-NEXT:   %2 = add i64 %1, 1337006139375616
 ; CHECK-NEXT:   %3 = lshr i64 %2, 6
@@ -53,7 +53,7 @@ define i32 @aligned4(i32* %a) {
 entry:
   %tmp1 = load i32, i32* %a, align 4
   ret i32 %tmp1
-; CHECK:        %0 = ptrtoint i32* %a to i64
+; CHECK:        %0 = newptrtoint i32* %a to i64
 ; CHECK-NEXT:   %1 = and i64 %0, 17592186044415
 ; CHECK-NEXT:   %2 = add i64 %1, 1337006139375616
 ; CHECK-NEXT:   %3 = lshr i64 %2, 6
@@ -74,7 +74,7 @@ define i64 @aligned8(i64* %a) {
 entry:
   %tmp1 = load i64, i64* %a, align 8
   ret i64 %tmp1
-; CHECK:        %0 = ptrtoint i64* %a to i64
+; CHECK:        %0 = newptrtoint i64* %a to i64
 ; CHECK-NEXT:   %1 = and i64 %0, 17592186044415
 ; CHECK-NEXT:   %2 = add i64 %1, 1337006139375616
 ; CHECK-NEXT:   %3 = lshr i64 %2, 6
@@ -95,7 +95,7 @@ define i128 @aligned16(i128* %a) {
 entry:
   %tmp1 = load i128, i128* %a, align 16
   ret i128 %tmp1
-; CHECK:        %0 = ptrtoint i128* %a to i64
+; CHECK:        %0 = newptrtoint i128* %a to i64
 ; CHECK-NEXT:   %1 = and i64 %0, 17592186044415
 ; CHECK-NEXT:   %2 = add i64 %1, 1337006139375616
 ; CHECK-NEXT:   %3 = lshr i64 %2, 6
