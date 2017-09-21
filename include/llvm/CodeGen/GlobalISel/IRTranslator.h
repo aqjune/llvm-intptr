@@ -348,6 +348,15 @@ private:
   bool translateUserOp2(const User &U, MachineIRBuilder &MIRBuilder) {
     return false;
   }
+  bool translateNewIntToPtr(const User &U, MachineIRBuilder &MIRBuilder) {
+    return false;
+  }
+  bool translateNewPtrToInt(const User &U, MachineIRBuilder &MIRBuilder) {
+    return false;
+  }
+  bool translateCapture(const User &U, MachineIRBuilder &MIRBuilder) {
+    return false;
+  }
 
   /// @}
 
