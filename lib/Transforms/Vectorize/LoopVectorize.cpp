@@ -3234,7 +3234,7 @@ Value *InnerLoopVectorizer::getOrCreateTripCount(Loop *L) {
 
   if (TripCount->getType()->isPointerTy())
     TripCount =
-        CastInst::CreatePointerCast(TripCount, IdxTy, "exitcount.ptrcnt.to.int",
+        new NewPtrToIntInst(TripCount, IdxTy, "exitcount.ptrcnt.to.int",
                                     L->getLoopPreheader()->getTerminator());
 
   return TripCount;
@@ -3284,13 +3284,12 @@ Value *InnerLoopVectorizer::createBitOrPointerCast(Value *V, VectorType *DstVTy,
          "Vector elements must have same size");
 
   // Do a direct cast if element types are castable.
-  if (CastInst::isBitOrNoopPointerCastable(SrcElemTy, DstElemTy, DL)) {
+  if (CastInst::isBitCastable(SrcElemTy, DstElemTy) ||
+      (SrcElemTy->isPointerTy() && DstElemTy->isIntegerTy()) ||
+      (SrcElemTy->isIntegerTy() && DstElemTy->isPointerTy())) {
     return Builder.CreateBitOrPointerCast(V, DstVTy);
-  } else if (SrcElemTy->isPointerTy() && DstElemTy->isIntegerTy()) {
-    return Builder.CreateNewPtrToInt(V, DstVTy);
-  } else if (SrcElemTy->isIntegerTy() && DstElemTy->isPointerTy()) {
-    return Builder.CreateNewIntToPtr(V, DstVTy);
   }
+
   // V cannot be directly casted to desired vector type.
   // May happen when V is a floating point vector but DstVTy is a vector of
   // pointers or vice-versa. Handle this using a two-step bitcast using an

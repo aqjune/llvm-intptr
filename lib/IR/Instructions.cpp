@@ -2678,7 +2678,8 @@ CastInst *CastInst::CreatePointerCast(Value *S, Type *Ty,
          "Invalid cast");
 
   if (Ty->isIntOrIntVectorTy())
-    return Create(Instruction::PtrToInt, S, Ty, Name, InsertAtEnd);
+    llvm_unreachable("NewPtrToInt should be used instead.");
+    //return Create(Instruction::PtrToInt, S, Ty, Name, InsertAtEnd);
 
   return CreatePointerBitCastOrAddrSpaceCast(S, Ty, Name, InsertAtEnd);
 }
@@ -2696,7 +2697,8 @@ CastInst *CastInst::CreatePointerCast(Value *S, Type *Ty,
          "Invalid cast");
 
   if (Ty->isIntOrIntVectorTy())
-    return Create(Instruction::PtrToInt, S, Ty, Name, InsertBefore);
+    llvm_unreachable("NewPtrToInt should be used instead.");
+    //return Create(Instruction::PtrToInt, S, Ty, Name, InsertBefore);
 
   return CreatePointerBitCastOrAddrSpaceCast(S, Ty, Name, InsertBefore);
 }
@@ -2731,9 +2733,11 @@ CastInst *CastInst::CreateBitOrPointerCast(Value *S, Type *Ty,
                                            const Twine &Name,
                                            Instruction *InsertBefore) {
   if (S->getType()->isPointerTy() && Ty->isIntegerTy())
-    return Create(Instruction::PtrToInt, S, Ty, Name, InsertBefore);
+    //return Create(Instruction::PtrToInt, S, Ty, Name, InsertBefore);
+    llvm_unreachable("NewPtrToInt should be used.");
   if (S->getType()->isIntegerTy() && Ty->isPointerTy())
-    return Create(Instruction::IntToPtr, S, Ty, Name, InsertBefore);
+    //return Create(Instruction::IntToPtr, S, Ty, Name, InsertBefore);
+    llvm_unreachable("NewIntToPtr should be used.");
 
   return Create(Instruction::BitCast, S, Ty, Name, InsertBefore);
 }

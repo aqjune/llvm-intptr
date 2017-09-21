@@ -4204,7 +4204,12 @@ bool InstCombiner::transformConstExprCastCall(CallSite CS) {
   Value *NV = NC;
   if (OldRetTy != NV->getType() && !Caller->use_empty()) {
     if (!NV->getType()->isVoidTy()) {
-      NV = NC = CastInst::CreateBitOrPointerCast(NC, OldRetTy);
+      if (NC->getType()->isIntOrIntVectorTy() && OldRetTy->isPtrOrPtrVectorTy())
+        NV = NC = new NewIntToPtrInst(NC, OldRetTy);
+      else if (NC->getType()->isPtrOrPtrVectorTy() && OldRetTy->isIntOrIntVectorTy())
+        NV = NC = new NewPtrToIntInst(NC, OldRetTy);
+      else
+        NV = NC = CastInst::CreateBitOrPointerCast(NC, OldRetTy);
       NC->setDebugLoc(Caller->getDebugLoc());
 
       // If this is an invoke instruction, we should insert it after the first

@@ -1499,6 +1499,9 @@ public:
       return V;
     if (Constant *VC = dyn_cast<Constant>(V))
       return Insert(Folder.CreatePointerCast(VC, DestTy), Name);
+
+    if (DestTy->isIntOrIntVectorTy())
+      return Insert(new NewPtrToIntInst(V, DestTy), Name);
     return Insert(CastInst::CreatePointerCast(V, DestTy), Name);
   }
 
@@ -1530,9 +1533,9 @@ public:
     if (V->getType() == DestTy)
       return V;
     if (V->getType()->isPtrOrPtrVectorTy() && DestTy->isIntOrIntVectorTy())
-      return CreatePtrToInt(V, DestTy, Name);
+      return CreateNewPtrToInt(V, DestTy, Name);
     if (V->getType()->isIntOrIntVectorTy() && DestTy->isPtrOrPtrVectorTy())
-      return CreateIntToPtr(V, DestTy, Name);
+      return CreateNewIntToPtr(V, DestTy, Name);
 
     return CreateBitCast(V, DestTy, Name);
   }
@@ -1808,9 +1811,14 @@ public:
     assert(LHS->getType() == RHS->getType() &&
            "Pointer subtraction operand types must match!");
     PointerType *ArgType = cast<PointerType>(LHS->getType());
-    Value *LHS_int = CreatePtrToInt(LHS, Type::getInt64Ty(Context));
-    Value *RHS_int = CreatePtrToInt(RHS, Type::getInt64Ty(Context));
-    Value *Difference = CreateSub(LHS_int, RHS_int);
+
+    Type *psubTys[] = { Type::getInt64Ty(Context), ArgType, ArgType };
+    Value *psubArgs[] = { LHS, RHS };
+    Module *M = BB->getParent()->getParent();
+    Value *Difference = CreateCall(Intrinsic::getDeclaration(M,
+                  llvm::Intrinsic::psub, ArrayRef<llvm::Type *>(psubTys, 3)),
+               psubArgs);
+
     return CreateExactSDiv(Difference,
                            ConstantExpr::getSizeOf(ArgType->getElementType()),
                            Name);
@@ -1890,7 +1898,7 @@ private:
                                             Value *PtrValue, Value *Mask,
                                             Type *IntPtrTy,
                                             Value *OffsetValue) {
-    Value *PtrIntValue = CreatePtrToInt(PtrValue, IntPtrTy, "ptrint");
+    Value *PtrIntValue = CreateNewPtrToInt(PtrValue, IntPtrTy, "ptrint");
 
     if (OffsetValue) {
       bool IsOffsetZero = false;

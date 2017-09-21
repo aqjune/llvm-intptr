@@ -816,7 +816,7 @@ static Value *rewriteGEPAsOffset(Value *Start, Value *Base,
     // If required, create an inttoptr instruction for Base.
     Value *NewBase = Base;
     if (!Base->getType()->isPointerTy())
-      NewBase = Builder.CreateBitOrPointerCast(Base, Start->getType(),
+      NewBase = Builder.CreateNewIntToPtr(Base, Start->getType(),
                                                Start->getName() + "to.ptr");
 
     Value *GEP = Builder.CreateInBoundsGEP(
