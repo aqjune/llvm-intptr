@@ -1,14 +1,12 @@
 ; RUN: opt < %s -instsimplify -S | FileCheck %s
 target datalayout = "p:32:32"
 
-define i1 @ptrtoint() {
-; CHECK-LABEL: @ptrtoint(
-  %a = alloca i8
-  %tmp = ptrtoint i8* %a to i32
-  %r = icmp eq i32 %tmp, 0
-  ret i1 %r
-; CHECK: ret i1 false
-}
+;define i1 @ptrtoint() {
+;  %a = alloca i8
+;  %tmp = ptrtoint i8* %a to i32
+;  %r = icmp eq i32 %tmp, 0
+;  ret i1 %r
+;}
 
 define i1 @bitcast() {
 ; CHECK-LABEL: @bitcast(
@@ -114,41 +112,35 @@ define i1 @gep8(%gept* %x) {
 ; CHECK: ret i1 %equal
 }
 
-define i1 @gep9(i8* %ptr) {
-; CHECK-LABEL: @gep9(
-; CHECK-NOT: ret
-; CHECK: ret i1 true
+;define i1 @gep9(i8* %ptr) {
+;
+;entry:
+;  %first1 = getelementptr inbounds i8, i8* %ptr, i32 0
+;  %first2 = getelementptr inbounds i8, i8* %first1, i32 1
+;  %first3 = getelementptr inbounds i8, i8* %first2, i32 2
+;  %first4 = getelementptr inbounds i8, i8* %first3, i32 4
+;  %last1 = getelementptr inbounds i8, i8* %first2, i32 48
+;  %last2 = getelementptr inbounds i8, i8* %last1, i32 8
+;  %last3 = getelementptr inbounds i8, i8* %last2, i32 -4
+;  %last4 = getelementptr inbounds i8, i8* %last3, i32 -4
+;  %first.int = ptrtoint i8* %first4 to i32
+;  %last.int = ptrtoint i8* %last4 to i32
+;  %cmp = icmp ne i32 %last.int, %first.int
+;  ret i1 %cmp
+;}
 
-entry:
-  %first1 = getelementptr inbounds i8, i8* %ptr, i32 0
-  %first2 = getelementptr inbounds i8, i8* %first1, i32 1
-  %first3 = getelementptr inbounds i8, i8* %first2, i32 2
-  %first4 = getelementptr inbounds i8, i8* %first3, i32 4
-  %last1 = getelementptr inbounds i8, i8* %first2, i32 48
-  %last2 = getelementptr inbounds i8, i8* %last1, i32 8
-  %last3 = getelementptr inbounds i8, i8* %last2, i32 -4
-  %last4 = getelementptr inbounds i8, i8* %last3, i32 -4
-  %first.int = ptrtoint i8* %first4 to i32
-  %last.int = ptrtoint i8* %last4 to i32
-  %cmp = icmp ne i32 %last.int, %first.int
-  ret i1 %cmp
-}
-
-define i1 @gep10(i8* %ptr) {
-; CHECK-LABEL: @gep10(
-; CHECK-NOT: ret
-; CHECK: ret i1 true
-
-entry:
-  %first1 = getelementptr inbounds i8, i8* %ptr, i32 -2
-  %first2 = getelementptr inbounds i8, i8* %first1, i32 44
-  %last1 = getelementptr inbounds i8, i8* %ptr, i32 48
-  %last2 = getelementptr inbounds i8, i8* %last1, i32 -6
-  %first.int = ptrtoint i8* %first2 to i32
-  %last.int = ptrtoint i8* %last2 to i32
-  %cmp = icmp eq i32 %last.int, %first.int
-  ret i1 %cmp
-}
+;define i1 @gep10(i8* %ptr) {
+;
+;entry:
+;  %first1 = getelementptr inbounds i8, i8* %ptr, i32 -2
+;  %first2 = getelementptr inbounds i8, i8* %first1, i32 44
+;  %last1 = getelementptr inbounds i8, i8* %ptr, i32 48
+;  %last2 = getelementptr inbounds i8, i8* %last1, i32 -6
+;  %first.int = ptrtoint i8* %first2 to i32
+;  %last.int = ptrtoint i8* %last2 to i32
+;  %cmp = icmp eq i32 %last.int, %first.int
+;  ret i1 %cmp
+;}
 
 define i1 @gep11(i8* %ptr) {
 ; CHECK-LABEL: @gep11(
@@ -216,18 +208,16 @@ define i1 @gep16(i8* %ptr, i32 %a) {
 ; CHECK-NEXT: ret i1 false
 }
 
-define i1 @gep17() {
-; CHECK-LABEL: @gep17(
-  %alloca = alloca i32, align 4
-  %bc = bitcast i32* %alloca to [4 x i8]*
-  %gep1 = getelementptr inbounds i32, i32* %alloca, i32 1
-  %pti1 = ptrtoint i32* %gep1 to i32
-  %gep2 = getelementptr inbounds [4 x i8], [4 x i8]* %bc, i32 0, i32 1
-  %pti2 = ptrtoint i8* %gep2 to i32
-  %cmp = icmp ugt i32 %pti1, %pti2
-  ret i1 %cmp
-; CHECK-NEXT: ret i1 true
-}
+;define i1 @gep17() {
+;  %alloca = alloca i32, align 4
+;  %bc = bitcast i32* %alloca to [4 x i8]*
+;  %gep1 = getelementptr inbounds i32, i32* %alloca, i32 1
+;  %pti1 = ptrtoint i32* %gep1 to i32
+;  %gep2 = getelementptr inbounds [4 x i8], [4 x i8]* %bc, i32 0, i32 1
+;  %pti2 = ptrtoint i8* %gep2 to i32
+;  %cmp = icmp ugt i32 %pti1, %pti2
+;  ret i1 %cmp
+;}
 
 define i1 @zext(i32 %x) {
 ; CHECK-LABEL: @zext(
