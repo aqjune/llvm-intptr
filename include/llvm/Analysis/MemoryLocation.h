@@ -46,6 +46,8 @@ public:
   enum : uint64_t { UnknownSize = ~UINT64_C(0) };
 
   /// The address of the start of the location.
+  /// Ptr can be nullptr if it is unknown which memory location it is going
+  /// to be accessed. (ex: int->ptr casting operation)
   const Value *Ptr;
 
   /// The maximum size of the location, in address-units, or
@@ -60,6 +62,10 @@ public:
   /// The metadata nodes which describes the aliasing of the location (each
   /// member is null if that kind of information is unavailable).
   AAMDNodes AATags;
+
+  /// Is this memory location only accessible by
+  /// pointer-integer casting operation?
+  bool IsOnlyAccessibleByPtrIntCast;
 
   /// Return a location with information about the memory reference by the given
   /// instruction.
@@ -110,8 +116,10 @@ public:
 
   explicit MemoryLocation(const Value *Ptr = nullptr,
                           uint64_t Size = UnknownSize,
-                          const AAMDNodes &AATags = AAMDNodes())
-      : Ptr(Ptr), Size(Size), AATags(AATags) {}
+                          const AAMDNodes &AATags = AAMDNodes(),
+                          bool IsOnlyAccessibleByPtrIntCast = false)
+      : Ptr(Ptr), Size(Size), AATags(AATags),
+        IsOnlyAccessibleByPtrIntCast(IsOnlyAccessibleByPtrIntCast) {}
 
   MemoryLocation getWithNewPtr(const Value *NewPtr) const {
     MemoryLocation Copy(*this);
@@ -132,7 +140,8 @@ public:
   }
 
   bool operator==(const MemoryLocation &Other) const {
-    return Ptr == Other.Ptr && Size == Other.Size && AATags == Other.AATags;
+    return Ptr == Other.Ptr && Size == Other.Size && AATags == Other.AATags &&
+           IsOnlyAccessibleByPtrIntCast == Other.IsOnlyAccessibleByPtrIntCast;
   }
 };
 
@@ -147,7 +156,8 @@ template <> struct DenseMapInfo<MemoryLocation> {
   static unsigned getHashValue(const MemoryLocation &Val) {
     return DenseMapInfo<const Value *>::getHashValue(Val.Ptr) ^
            DenseMapInfo<uint64_t>::getHashValue(Val.Size) ^
-           DenseMapInfo<AAMDNodes>::getHashValue(Val.AATags);
+           DenseMapInfo<AAMDNodes>::getHashValue(Val.AATags) ^
+           DenseMapInfo<char>::getHashValue((const char &)Val.IsOnlyAccessibleByPtrIntCast);
   }
   static bool isEqual(const MemoryLocation &LHS, const MemoryLocation &RHS) {
     return LHS == RHS;

@@ -506,15 +506,9 @@ public:
     return getModRefInfo(I, MemoryLocation(P, Size));
   }
 
-  ModRefInfo getModRefInfo(const CaptureInst *CI, const MemoryLocation &Loc) {
-    return MRI_ModRef;
-  }
-  ModRefInfo getModRefInfo(const NewPtrToIntInst *NPTI, const MemoryLocation &Loc) {
-    return MRI_ModRef;
-  }
-  ModRefInfo getModRefInfo(const NewIntToPtrInst *NIPI, const MemoryLocation &Loc) {
-    return MRI_ModRef;
-  }
+  ModRefInfo getModRefInfo(const CaptureInst *CI, const MemoryLocation &Loc);
+  ModRefInfo getModRefInfo(const NewPtrToIntInst *NPTI, const MemoryLocation &Loc);
+  ModRefInfo getModRefInfo(const NewIntToPtrInst *NIPI, const MemoryLocation &Loc);
 
   /// Check whether or not an instruction may read or write the optionally
   /// specified memory location.
