@@ -787,6 +787,10 @@ bool GlobalsAAResult::isNonEscapingGlobalNoAlias(const GlobalValue *GV,
 /// address of the global isn't taken.
 AliasResult GlobalsAAResult::alias(const MemoryLocation &LocA,
                                    const MemoryLocation &LocB) {
+  if (LocA.Ptr == nullptr || LocB.Ptr == nullptr)
+    // It is unknown which memory block they're pointing to, so return
+    // MayAlias.
+    return MayAlias;
   // Get the base object these pointers point to.
   const Value *UV1 = GetUnderlyingObject(LocA.Ptr, DL);
   const Value *UV2 = GetUnderlyingObject(LocB.Ptr, DL);
@@ -898,14 +902,15 @@ ModRefInfo GlobalsAAResult::getModRefInfo(ImmutableCallSite CS,
 
   // If we are asking for mod/ref info of a direct call with a pointer to a
   // global we are tracking, return information if we have it.
-  if (const GlobalValue *GV =
-          dyn_cast<GlobalValue>(GetUnderlyingObject(Loc.Ptr, DL)))
-    if (GV->hasLocalLinkage())
-      if (const Function *F = CS.getCalledFunction())
-        if (NonAddressTakenGlobals.count(GV))
-          if (const FunctionInfo *FI = getFunctionInfo(F))
-            Known = FI->getModRefInfoForGlobal(*GV) |
-              getModRefInfoForArgument(CS, GV);
+  if (Loc.Ptr)
+    if (const GlobalValue *GV =
+            dyn_cast<GlobalValue>(GetUnderlyingObject(Loc.Ptr, DL)))
+      if (GV->hasLocalLinkage())
+        if (const Function *F = CS.getCalledFunction())
+          if (NonAddressTakenGlobals.count(GV))
+            if (const FunctionInfo *FI = getFunctionInfo(F))
+              Known = FI->getModRefInfoForGlobal(*GV) |
+                getModRefInfoForArgument(CS, GV);
 
   if (Known == MRI_NoModRef)
     return MRI_NoModRef; // No need to query other mod/ref analyses

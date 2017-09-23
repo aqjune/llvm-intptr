@@ -458,6 +458,22 @@ ModRefInfo AAResults::getModRefInfo(const AtomicRMWInst *RMW,
   return MRI_ModRef;
 }
 
+ModRefInfo AAResults::getModRefInfo(const NewPtrToIntInst *PI,
+                                    const MemoryLocation &Loc) {
+  if (Loc.Ptr && !alias(MemoryLocation::get(PI), Loc))
+    return MRI_NoModRef;
+
+  return MRI_ModRef;
+}
+
+ModRefInfo AAResults::getModRefInfo(const NewIntToPtrInst *II,
+                                    const MemoryLocation &Loc) {
+  if (Loc.Ptr && !alias(MemoryLocation::get(II), Loc))
+    return MRI_NoModRef;
+
+  return MRI_Ref;
+}
+
 /// \brief Return information about whether a particular call site modifies
 /// or reads the specified memory location \p MemLoc before instruction \p I
 /// in a BasicBlock. A ordered basic block \p OBB can be used to speed up

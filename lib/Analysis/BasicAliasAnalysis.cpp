@@ -545,6 +545,10 @@ bool BasicAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
                                            bool OrLocal) {
   assert(Visited.empty() && "Visited must be cleared after use!");
 
+  if (Loc.Ptr == nullptr)
+    // Be conservative.
+    return false;
+
   unsigned MaxLookup = 8;
   SmallVector<const Value *, 16> Worklist;
   Worklist.push_back(Loc.Ptr);
@@ -714,6 +718,10 @@ static const Function *getParent(const Value *V) {
 }
 
 static bool notDifferentParent(const Value *O1, const Value *O2) {
+  if (O1 == nullptr || O2 == nullptr)
+    // This happens if newinttoptr is going to be compared with someone else.
+    // newinttoptr has MemoryLocation(nullptr, ...), so O1 here is nullptr.
+    return true;
 
   const Function *F1 = getParent(O1);
   const Function *F2 = getParent(O2);
@@ -734,8 +742,15 @@ AliasResult BasicAAResult::alias(const MemoryLocation &LocA,
   if (CacheIt != AliasCache.end())
     return CacheIt->second;
 
-  AliasResult Alias = aliasCheck(LocA.Ptr, LocA.Size, LocA.AATags, LocB.Ptr,
+  AliasResult Alias;
+  if (LocA.IsOnlyAccessibleByPtrIntCast && LocB.IsOnlyAccessibleByPtrIntCast) {
+    Alias = aliasMemLocOnlyAccessibleByPtrIntCast(LocA.Ptr, LocB.Ptr);
+  } else if (!LocA.IsOnlyAccessibleByPtrIntCast && !LocB.IsOnlyAccessibleByPtrIntCast) {
+    Alias = aliasCheck(LocA.Ptr, LocA.Size, LocA.AATags, LocB.Ptr,
                                  LocB.Size, LocB.AATags);
+  } else {
+    Alias = NoAlias;
+  }
   // AliasCache rarely has more than 1 or 2 elements, always use
   // shrink_and_clear so it quickly returns to the inline capacity of the
   // SmallDenseMap if it ever grows larger.
@@ -755,6 +770,11 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS,
                                         const MemoryLocation &Loc) {
   assert(notDifferentParent(CS.getInstruction(), Loc.Ptr) &&
          "AliasAnalysis query involving multiple functions!");
+
+  if (Loc.Ptr == nullptr)
+    // Be conservative. Another option is to create a new function attribute
+    // that marks the function only touches ptr-int casting memory.
+    return MRI_ModRef;
 
   const Value *Object = GetUnderlyingObject(Loc.Ptr, DL);
 
@@ -936,6 +956,16 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS1,
 
   // The AAResultBase base class has some smarts, lets use them.
   return AAResultBase::getModRefInfo(CS1, CS2);
+}
+
+AliasResult BasicAAResult::aliasMemLocOnlyAccessibleByPtrIntCast(
+      const Value *V1, const Value *V2) {
+  if (V1 == nullptr || V2 == nullptr)
+    // At least one of them is from `newinttoptr i`.
+    // newinttoptr may alias with other ptr-int casting operations.
+    return MayAlias;
+  return aliasCheck(V1, MemoryLocation::UnknownSize, AAMDNodes(),
+                    V2, MemoryLocation::UnknownSize, AAMDNodes());
 }
 
 /// Provide ad-hoc rules to disambiguate accesses through two GEP operators,
