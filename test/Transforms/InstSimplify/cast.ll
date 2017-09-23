@@ -27,28 +27,28 @@ entry:
 ; CHECK: ret i8* %V
 }
 
-define i32 @test4() {
-; CHECK-LABEL: @test4(
-  %alloca = alloca i32, align 4                                     ; alloca + 0
-  %gep = getelementptr inbounds i32, i32* %alloca, i32 1            ; alloca + 4
-  %bc = bitcast i32* %gep to [4 x i8]*                              ; alloca + 4
-  %pti = ptrtoint i32* %alloca to i32                               ; alloca
-  %sub = sub i32 0, %pti                                            ; -alloca
-  %add = getelementptr [4 x i8], [4 x i8]* %bc, i32 0, i32 %sub     ; alloca + 4 - alloca == 4
-  %add_to_int = ptrtoint i8* %add to i32                            ; 4
-  ret i32 %add_to_int                                               ; 4
-; CHECK-NEXT: ret i32 4
-}
+; NOTE: This transformation itself is valid, but it involves optimizing
+; %add into "inttoptr 4", which is incorrect.
+;define i32 @test4() {
+;  %alloca = alloca i32, align 4                                     ; alloca + 0
+;  %gep = getelementptr inbounds i32, i32* %alloca, i32 1            ; alloca + 4
+;  %bc = bitcast i32* %gep to [4 x i8]*                              ; alloca + 4
+;  %pti = ptrtoint i32* %alloca to i32                               ; alloca
+;  %sub = sub i32 0, %pti                                            ; -alloca
+;  %add = getelementptr [4 x i8], [4 x i8]* %bc, i32 0, i32 %sub     ; alloca + 4 - alloca == 4
+;  %add_to_int = ptrtoint i8* %add to i32                            ; 4
+;  ret i32 %add_to_int                                               ; 4
+;}
 
-define i32 @test5() {
-; CHECK-LABEL: @test5(
-  %alloca = alloca i32, align 4                                     ; alloca + 0
-  %gep = getelementptr inbounds i32, i32* %alloca, i32 1            ; alloca + 4
-  %bc = bitcast i32* %gep to [4 x i8]*                              ; alloca + 4
-  %pti = ptrtoint i32* %alloca to i32                               ; alloca
-  %sub = xor i32 %pti, -1                                           ; ~alloca
-  %add = getelementptr [4 x i8], [4 x i8]* %bc, i32 0, i32 %sub     ; alloca + 4 - alloca - 1 == 3
-  %add_to_int = ptrtoint i8* %add to i32                            ; 4
-  ret i32 %add_to_int                                               ; 4
-; CHECK-NEXT: ret i32 3
-}
+; NOTE: This transformation itself is valid, but it involves optimizing
+; %add into "inttoptr 4", which is incorrect.
+;define i32 @test5() {
+;  %alloca = alloca i32, align 4                                     ; alloca + 0
+;  %gep = getelementptr inbounds i32, i32* %alloca, i32 1            ; alloca + 4
+;  %bc = bitcast i32* %gep to [4 x i8]*                              ; alloca + 4
+;  %pti = ptrtoint i32* %alloca to i32                               ; alloca
+;  %sub = xor i32 %pti, -1                                           ; ~alloca
+;  %add = getelementptr [4 x i8], [4 x i8]* %bc, i32 0, i32 %sub     ; alloca + 4 - alloca - 1 == 3
+;  %add_to_int = ptrtoint i8* %add to i32                            ; 4
+;  ret i32 %add_to_int                                               ; 4
+;}
