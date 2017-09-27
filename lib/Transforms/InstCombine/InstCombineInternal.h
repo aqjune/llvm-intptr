@@ -338,6 +338,9 @@ public:
   Instruction *visitVAStartInst(VAStartInst &I);
   Instruction *visitVACopyInst(VACopyInst &I);
 
+  Instruction *visitNewPtrToIntInst(NewPtrToIntInst &I);
+  Instruction *visitNewIntToPtrInst(NewIntToPtrInst &I);
+
   /// Specify what to return for unhandled instructions.
   Instruction *visitInstruction(Instruction &I) { return nullptr; }
 

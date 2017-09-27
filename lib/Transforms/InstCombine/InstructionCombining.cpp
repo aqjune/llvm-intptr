@@ -2098,6 +2098,84 @@ static bool isAllocSiteRemovable(Instruction *AI,
   return true;
 }
 
+Instruction *InstCombiner::visitNewPtrToIntInst(NewPtrToIntInst &I) {
+  Value *Op = I.getOperand(0);
+  if (isa<ConstantPointerNull>(Op)) {
+    auto C = Constant::getNullValue(I.getType());
+    replaceInstUsesWith(I, C);
+    return eraseInstFromFunction(I);
+  }
+  // We don't need to capture a memory block multiple times
+  // 10: p = ptrtoint ptr
+  // 20: q = ptrtoint ptr
+  // 30: use(q)
+  // ->
+  // 10: p = ptrtoint ptr
+  // 20: -
+  // 30: use(p)
+  for (auto itr = Op->user_begin(); itr != Op->user_end(); itr++) {
+    Value *User = *itr;
+    NewPtrToIntInst *UserI = dyn_cast<NewPtrToIntInst>(User);
+    if (UserI) {
+      if (UserI == &I) continue;
+      if (DT.dominates(UserI, &I)) {
+        replaceInstUsesWith(I, User);
+        return eraseInstFromFunction(I);
+      }
+    }
+  }
+  // ptrtoint (gep p, C1, C2, ..) -> (ptrtoint p) + (C1 + C2 + ..)
+  // ptrtoint (gep p, q) -> (ptrtoint p) + q
+  /*
+  if (GetElementPtrInst *GI = dyn_cast<GetElementPtrInst>(Op)) {
+    uint64_t PtrBitSz = DL.getPointerTypeSizeInBits(Op->getType());
+    if (!I.getType()->isVectorTy() && PtrBitSz <= 64) {
+      Type *IntTy = I.getType();
+      Value *GIOp = GI->getPointerOperand(); // This is LHS of add.
+      Value *RHS = nullptr; // This is RHS of add.
+      APInt ConstOfs(PtrBitSz, 0);
+      if (GI->accumulateConstantOffset(DL, ConstOfs)) {
+        RHS = ConstantInt::get(IntTy, ConstOfs.getLimitedValue());
+        RHS = Builder.CreateIntCast(RHS, IntTy, true, "cast");
+      } else if (GI->getNumIndices() == 1) {
+        Value *Idx = *(GI->idx_begin());
+        RHS = Builder.CreateIntCast(Idx, IntTy, true, "cast");
+      }
+      if (RHS) {
+        Value *NewPI = Builder.CreateNewPtrToInt(GIOp, IntTy, I.getName() + ".2");
+        Value *NewAdd = Builder.CreateAdd(NewPI, RHS, I.getName() + ".add",
+            false, // Cannot have nuw flag.
+            false);
+        replaceInstUsesWith(I, NewAdd);
+        return eraseInstFromFunction(I);
+      }
+    }
+  }*/
+  // p = inttoptr i'
+  // i = ptrtoint p
+  // ->
+  // i = i'
+  if (NewIntToPtrInst *Cast = dyn_cast<NewIntToPtrInst>(Op)) {
+    Value *Op0 = Cast->getOperand(0);
+    if (Op0->getType() == I.getType()) {
+      replaceInstUsesWith(I, Op0);
+      return eraseInstFromFunction(I);
+    }
+  }
+  // i = ptrtoint(bitcast p) -> i = ptrtoint p
+  if (BitCastInst *BCI = dyn_cast<BitCastInst>(Op)) {
+    Value *NewV = Builder.CreateNewPtrToInt(BCI->getOperand(0),
+        I.getType(), I.getName() + ".2");
+    replaceInstUsesWith(I, NewV);
+    return eraseInstFromFunction(I);
+  }
+  return nullptr;
+}
+
+Instruction *InstCombiner::visitNewIntToPtrInst(NewIntToPtrInst &I) {
+  return nullptr;
+}
+
 Instruction *InstCombiner::visitAllocSite(Instruction &MI) {
   // If we have a malloc call which is only used in any amount of comparisons
   // to null and free calls, delete the calls and replace the comparisons with
