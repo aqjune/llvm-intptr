@@ -1806,7 +1806,7 @@ Instruction *InstCombiner::foldICmpOrConstant(ICmpInst &Cmp, BinaryOperator *Or,
   if (!Cmp.isEquality() || !C->isNullValue() || !Or->hasOneUse())
     return nullptr;
 
-  Value *P, *Q;
+  //Value *P, *Q;
   //if (match(Or, m_Or(m_PtrToInt(m_Value(P)), m_PtrToInt(m_Value(Q))))) {
     // Simplify icmp eq (or (ptrtoint P), (ptrtoint Q)), 0
     // -> and (icmp eq P, null), (icmp eq Q, null).
@@ -2774,6 +2774,25 @@ Instruction *InstCombiner::foldICmpIntrinsicWithConstant(ICmpInst &Cmp,
       auto *NewOp =
           IsZero ? Constant::getNullValue(Ty) : Constant::getAllOnesValue(Ty);
       Cmp.setOperand(1, NewOp);
+      return &Cmp;
+    }
+    break;
+  }
+  case Intrinsic::psub: {
+    // psub(a, b) == 0  ->  a == b
+    if (*C == 0) {
+      Value *Op0 = II->getArgOperand(0);
+      Value *Op1 = II->getArgOperand(1);
+      Value *NewCmp = nullptr;
+      if (Cmp.getPredicate() == CmpInst::ICMP_EQ) {
+        NewCmp = Builder.CreateICmpEQ(Op0, Op1);
+      } else if (Cmp.getPredicate() == CmpInst::ICMP_NE) {
+        NewCmp = Builder.CreateICmpNE(Op0, Op1);
+      } // There's no other case because this function starts with
+        // Cmp.isEquality().
+      NewCmp->takeName(&Cmp);
+      replaceInstUsesWith(Cmp, NewCmp);
+      Worklist.Add(II);
       return &Cmp;
     }
     break;

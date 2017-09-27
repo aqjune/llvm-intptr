@@ -2098,6 +2098,69 @@ static bool isAllocSiteRemovable(Instruction *AI,
   return true;
 }
 
+Instruction *InstCombiner::visitCaptureInst(CaptureInst &Cap) {
+  Value *PtrOp = Cap.getOperand(0);
+  // We don't need to capture a memory block multiple times
+  // 10: capture ptr
+  // 20: capture ptr
+  // ->
+  // 10: capture ptr
+  for (auto itr = PtrOp->user_begin(); itr != PtrOp->user_end(); itr++) {
+    Value *User = *itr;
+    CaptureInst *UserCap = dyn_cast<CaptureInst>(User);
+    if (UserCap) {
+      if (UserCap == &Cap) continue;
+      if (DT.dominates(UserCap, &Cap)) {
+        return eraseInstFromFunction(Cap);
+      }
+    }
+  }
+	// capture (inttoptr p) -> none
+  if (isa<NewIntToPtrInst>(PtrOp))
+    return eraseInstFromFunction(Cap);
+  // capture (gep p, ..) -> capture p
+  SmallVector<Value *, 4> PBases;
+  GetUnderlyingObjects(PtrOp, PBases, DL, nullptr, 6);
+  if (PBases.size() == 1 && PtrOp != PBases[0]) {
+    Cap.setOperand(0, PBases[0]);
+    return &Cap;
+  }
+  return nullptr;
+}
+
+Instruction *InstCombiner::visitNewPtrToIntInst(NewPtrToIntInst &I) {
+  Value *Op = I.getOperand(0);
+  if (isa<ConstantPointerNull>(Op)) {
+    auto C = Constant::getNullValue(I.getType());
+    replaceInstUsesWith(I, C);
+    return eraseInstFromFunction(I);
+  }
+  // p = inttoptr i'
+  // i = ptrtoint p
+  // ->
+  // i = i'
+  if (NewIntToPtrInst *Cast = dyn_cast<NewIntToPtrInst>(Op)) {
+    Value *Op0 = Cast->getOperand(0);
+    if (Op0->getType() == I.getType()) {
+      replaceInstUsesWith(I, Op0);
+      return eraseInstFromFunction(I);
+    }
+  }
+  // i = ptrtoint(bitcast p) -> i = ptrtoint p
+  if (BitCastInst *BCI = dyn_cast<BitCastInst>(Op)) {
+    Type *SrcTy = BCI->getSrcTy();
+    Value *NewV = Builder.CreateNewPtrToInt(BCI->getOperand(0),
+        I.getType(), I.getName() + ".2");
+    replaceInstUsesWith(I, NewV);
+    return eraseInstFromFunction(I);
+  }
+  return nullptr;
+}
+
+Instruction *InstCombiner::visitNewIntToPtrInst(NewIntToPtrInst &I) {
+  return nullptr;
+}
+
 Instruction *InstCombiner::visitAllocSite(Instruction &MI) {
   // If we have a malloc call which is only used in any amount of comparisons
   // to null and free calls, delete the calls and replace the comparisons with
