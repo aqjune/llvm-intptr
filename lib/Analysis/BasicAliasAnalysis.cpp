@@ -545,6 +545,9 @@ bool BasicAAResult::pointsToConstantMemory(const MemoryLocation &Loc,
                                            bool OrLocal) {
   assert(Visited.empty() && "Visited must be cleared after use!");
 
+  if (Loc.Ptr == nullptr)
+    return false;
+
   unsigned MaxLookup = 8;
   SmallVector<const Value *, 16> Worklist;
   Worklist.push_back(Loc.Ptr);
@@ -714,6 +717,8 @@ static const Function *getParent(const Value *V) {
 }
 
 static bool notDifferentParent(const Value *O1, const Value *O2) {
+  if (O1 == nullptr || O2 == nullptr)
+    return true;
 
   const Function *F1 = getParent(O1);
   const Function *F2 = getParent(O2);
@@ -755,6 +760,9 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS,
                                         const MemoryLocation &Loc) {
   assert(notDifferentParent(CS.getInstruction(), Loc.Ptr) &&
          "AliasAnalysis query involving multiple functions!");
+
+  if (Loc.Ptr == nullptr)
+    return MRI_ModRef;
 
   const Value *Object = GetUnderlyingObject(Loc.Ptr, DL);
 
