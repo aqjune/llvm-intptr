@@ -67,20 +67,7 @@ MemoryLocation MemoryLocation::get(const AtomicRMWInst *RMWI) {
 MemoryLocation MemoryLocation::get(const CaptureInst *CI) {
   AAMDNodes AATags; // capture has no AAMD node
   uint64_t Size = UnknownSize; // Size parameter is not needed.
-  return MemoryLocation(CI->getOperand(0), UnknownSize, AATags, true);
-}
-
-MemoryLocation MemoryLocation::get(const NewPtrToIntInst *NI) {
-  AAMDNodes AATags; // newptrtoint has no AAMD node
-  uint64_t Size = UnknownSize; // Size parameter is not needed.
-  return MemoryLocation(NI->getOperand(0), UnknownSize, AATags, true);
-}
-
-MemoryLocation MemoryLocation::get(const NewIntToPtrInst *NI) {
-  AAMDNodes AATags; // newinttoptr has no AAMD node
-  uint64_t Size = UnknownSize; // Size parameter is not needed.
-  // newinttoptr can return any captured blocks in memory.
-  return MemoryLocation(nullptr, UnknownSize, AATags, true);
+  return MemoryLocation(CI->getOperand(0), UnknownSize, AATags);
 }
 
 MemoryLocation MemoryLocation::getForSource(const MemTransferInst *MTI) {

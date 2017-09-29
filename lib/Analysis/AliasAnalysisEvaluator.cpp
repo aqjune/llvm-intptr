@@ -165,8 +165,7 @@ void AAEvaluator::runInternal(Function &F, AAResults &AA) {
     
     Instruction &Inst = *I;
     
-    if (isa<CaptureInst>(Inst) || isa<NewPtrToIntInst>(Inst)
-        || isa<NewIntToPtrInst>(Inst))
+    if (isa<CaptureInst>(Inst))
       PtrIntRelInsts.insert(&Inst);
     
     if (EvalAAMD && isa<LoadInst>(Inst))

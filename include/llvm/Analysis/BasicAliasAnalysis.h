@@ -206,9 +206,6 @@ private:
                           uint64_t V2Size, const AAMDNodes &V2AAInfo,
                           const Value *UnderV2);
 
-  AliasResult aliasMemLocOnlyAccessibleByPtrIntCast(const Value *V1,
-                        const Value *V2);
-
   AliasResult aliasCheck(const Value *V1, uint64_t V1Size, AAMDNodes V1AATag,
                          const Value *V2, uint64_t V2Size, AAMDNodes V2AATag,
                          const Value *O1 = nullptr, const Value *O2 = nullptr);

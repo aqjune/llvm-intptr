@@ -742,15 +742,8 @@ AliasResult BasicAAResult::alias(const MemoryLocation &LocA,
   if (CacheIt != AliasCache.end())
     return CacheIt->second;
 
-  AliasResult Alias;
-  if (LocA.IsOnlyAccessibleByPtrIntCast && LocB.IsOnlyAccessibleByPtrIntCast) {
-    Alias = aliasMemLocOnlyAccessibleByPtrIntCast(LocA.Ptr, LocB.Ptr);
-  } else if (!LocA.IsOnlyAccessibleByPtrIntCast && !LocB.IsOnlyAccessibleByPtrIntCast) {
-    Alias = aliasCheck(LocA.Ptr, LocA.Size, LocA.AATags, LocB.Ptr,
+  AliasResult Alias = aliasCheck(LocA.Ptr, LocA.Size, LocA.AATags, LocB.Ptr,
                                  LocB.Size, LocB.AATags);
-  } else {
-    Alias = NoAlias;
-  }
   // AliasCache rarely has more than 1 or 2 elements, always use
   // shrink_and_clear so it quickly returns to the inline capacity of the
   // SmallDenseMap if it ever grows larger.
@@ -956,16 +949,6 @@ ModRefInfo BasicAAResult::getModRefInfo(ImmutableCallSite CS1,
 
   // The AAResultBase base class has some smarts, lets use them.
   return AAResultBase::getModRefInfo(CS1, CS2);
-}
-
-AliasResult BasicAAResult::aliasMemLocOnlyAccessibleByPtrIntCast(
-      const Value *V1, const Value *V2) {
-  if (V1 == nullptr || V2 == nullptr)
-    // At least one of them is from `newinttoptr i`.
-    // newinttoptr may alias with other ptr-int casting operations.
-    return MayAlias;
-  return aliasCheck(V1, MemoryLocation::UnknownSize, AAMDNodes(),
-                    V2, MemoryLocation::UnknownSize, AAMDNodes());
 }
 
 /// Provide ad-hoc rules to disambiguate accesses through two GEP operators,

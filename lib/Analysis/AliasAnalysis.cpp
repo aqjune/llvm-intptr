@@ -141,10 +141,9 @@ ModRefInfo AAResults::getModRefInfo(Instruction *I, ImmutableCallSite Call) {
   } else if (I->isFenceLike()) {
     // If this is a fence, just return MRI_ModRef.
     return MRI_ModRef;
-  } else if (isa<CaptureInst>(I) || isa<NewPtrToIntInst>(I) ||
-             isa<NewIntToPtrInst>(I)) {
+  } else if (isa<CaptureInst>(I)) {
     // capture/newptrtoint/newinttoptr can mod/ref memory.
-    return MRI_ModRef;
+    return MRI_Mod;
   } else {
     // Otherwise, check if the call modifies or references the
     // location this memory access defines.  The best we can say
@@ -461,26 +460,7 @@ ModRefInfo AAResults::getModRefInfo(const AtomicRMWInst *RMW,
 
 ModRefInfo AAResults::getModRefInfo(const CaptureInst *CI,
                                     const MemoryLocation &Loc) {
-  if (Loc.Ptr && !alias(MemoryLocation::get(CI), Loc))
-    return MRI_NoModRef;
-
   return MRI_Mod;
-}
-
-ModRefInfo AAResults::getModRefInfo(const NewPtrToIntInst *PI,
-                                    const MemoryLocation &Loc) {
-  if (Loc.Ptr && !alias(MemoryLocation::get(PI), Loc))
-    return MRI_NoModRef;
-
-  return MRI_Ref;
-}
-
-ModRefInfo AAResults::getModRefInfo(const NewIntToPtrInst *II,
-                                    const MemoryLocation &Loc) {
-  if (Loc.Ptr && !alias(MemoryLocation::get(II), Loc))
-    return MRI_NoModRef;
-
-  return MRI_Ref;
 }
 
 /// \brief Return information about whether a particular call site modifies

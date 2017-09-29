@@ -507,8 +507,6 @@ public:
   }
 
   ModRefInfo getModRefInfo(const CaptureInst *CI, const MemoryLocation &Loc);
-  ModRefInfo getModRefInfo(const NewPtrToIntInst *NPTI, const MemoryLocation &Loc);
-  ModRefInfo getModRefInfo(const NewIntToPtrInst *NIPI, const MemoryLocation &Loc);
 
   /// Check whether or not an instruction may read or write the optionally
   /// specified memory location.
@@ -554,10 +552,6 @@ public:
       return getModRefInfo((const CatchReturnInst *)I, Loc);
     case Instruction::Capture:
       return getModRefInfo((const CaptureInst *)I, Loc);
-    case Instruction::NewPtrToInt:
-      return getModRefInfo((const NewPtrToIntInst *)I, Loc);
-    case Instruction::NewIntToPtr:
-      return getModRefInfo((const NewIntToPtrInst *)I, Loc);
     default:
       return MRI_NoModRef;
     }
