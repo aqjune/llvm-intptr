@@ -2116,8 +2116,8 @@ Instruction *InstCombiner::visitCaptureInst(CaptureInst &Cap) {
     }
   }
 	// capture (inttoptr p) -> none
-  if (isa<NewIntToPtrInst>(PtrOp))
-    return eraseInstFromFunction(Cap);
+  //if (isa<NewIntToPtrInst>(PtrOp))
+  //  return eraseInstFromFunction(Cap);
   // capture (gep p, ..) -> capture p
   SmallVector<Value *, 4> PBases;
   GetUnderlyingObjects(PtrOp, PBases, DL, nullptr, 6);

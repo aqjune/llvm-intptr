@@ -842,7 +842,7 @@ SeparateConstOffsetFromGEP::lowerToArithmetics(GetElementPtrInst *Variadic,
   IRBuilder<> Builder(Variadic);
   Type *IntPtrTy = DL->getIntPtrType(Variadic->getType());
 
-  Value *ResultPtr = Builder.CreateNewPtrToInt(Variadic->getOperand(0), IntPtrTy);
+  Value *ResultPtr = Builder.CreatePtrToInt(Variadic->getOperand(0), IntPtrTy);
   gep_type_iterator GTI = gep_type_begin(*Variadic);
   // Create ADD/SHL/MUL arithmetic operations for each sequential indices. We
   // don't create arithmetics for structure indices, as they are accumulated
@@ -877,7 +877,7 @@ SeparateConstOffsetFromGEP::lowerToArithmetics(GetElementPtrInst *Variadic,
         ResultPtr, ConstantInt::get(IntPtrTy, AccumulativeByteOffset));
   }
 
-  ResultPtr = Builder.CreateNewIntToPtr(ResultPtr, Variadic->getType());
+  ResultPtr = Builder.CreateIntToPtr(ResultPtr, Variadic->getType());
   Variadic->replaceAllUsesWith(ResultPtr);
   Variadic->eraseFromParent();
 }

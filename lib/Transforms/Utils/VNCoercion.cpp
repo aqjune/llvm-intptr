@@ -57,7 +57,7 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
       // Convert source pointers to integers, which can be bitcast.
       if (StoredValTy->isPtrOrPtrVectorTy()) {
         StoredValTy = DL.getIntPtrType(StoredValTy);
-        StoredVal = Helper.CreateNewPtrToInt(StoredVal, StoredValTy);
+        StoredVal = Helper.CreatePtrToInt(StoredVal, StoredValTy);
       }
 
       Type *TypeToCastTo = LoadedTy;
@@ -69,7 +69,7 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
 
       // Cast to pointer if the load needs a pointer type.
       if (LoadedTy->isPtrOrPtrVectorTy())
-        StoredVal = Helper.CreateNewIntToPtr(StoredVal, LoadedTy);
+        StoredVal = Helper.CreateIntToPtr(StoredVal, LoadedTy);
     }
 
     if (auto *C = dyn_cast<ConstantExpr>(StoredVal))
@@ -87,7 +87,7 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
   // Convert source pointers to integers, which can be manipulated.
   if (StoredValTy->isPtrOrPtrVectorTy()) {
     StoredValTy = DL.getIntPtrType(StoredValTy);
-    StoredVal = Helper.CreateNewPtrToInt(StoredVal, StoredValTy);
+    StoredVal = Helper.CreatePtrToInt(StoredVal, StoredValTy);
   }
 
   // Convert vectors and fp to integer, which can be manipulated.
@@ -112,7 +112,7 @@ static T *coerceAvailableValueToLoadTypeHelper(T *StoredVal, Type *LoadedTy,
   if (LoadedTy != NewIntTy) {
     // If the result is a pointer, inttoptr.
     if (LoadedTy->isPtrOrPtrVectorTy())
-      StoredVal = Helper.CreateNewIntToPtr(StoredVal, LoadedTy);
+      StoredVal = Helper.CreateIntToPtr(StoredVal, LoadedTy);
     else
       // Otherwise, bitcast.
       StoredVal = Helper.CreateBitCast(StoredVal, LoadedTy);
@@ -416,7 +416,7 @@ static T *getStoreValueForLoadHelper(T *SrcVal, unsigned Offset, Type *LoadTy,
   // Compute which bits of the stored value are being used by the load.  Convert
   // to an integer type to start with.
   if (SrcVal->getType()->isPtrOrPtrVectorTy()) {
-    SrcVal = Helper.CreateNewPtrToInt(SrcVal, DL.getIntPtrType(SrcVal->getType()));
+    SrcVal = Helper.CreatePtrToInt(SrcVal, DL.getIntPtrType(SrcVal->getType()));
   }
   if (!SrcVal->getType()->isIntegerTy())
     SrcVal = Helper.CreateBitCast(SrcVal, IntegerType::get(Ctx, StoreSize * 8));

@@ -1208,11 +1208,11 @@ public:
   }
   Value *CreateNewPtrToInt(Value *V, Type *DestTy,
                         const Twine &Name = "") {
-    return Insert(new NewPtrToIntInst(V, DestTy), Name);
+    return Insert(new PtrToIntInst(V, DestTy), Name);
   }
   Value *CreateNewIntToPtr(Value *V, Type *DestTy,
                         const Twine &Name = "") {
-    return Insert(new NewIntToPtrInst(V, DestTy), Name);
+    return Insert(new IntToPtrInst(V, DestTy), Name);
   }
   FenceInst *CreateFence(AtomicOrdering Ordering,
                          SyncScope::ID SSID = SyncScope::System,
@@ -1501,7 +1501,7 @@ public:
       return Insert(Folder.CreatePointerCast(VC, DestTy), Name);
 
     if (DestTy->isIntOrIntVectorTy())
-      return Insert(new NewPtrToIntInst(V, DestTy), Name);
+      return Insert(new PtrToIntInst(V, DestTy), Name);
     return Insert(CastInst::CreatePointerCast(V, DestTy), Name);
   }
 
@@ -1533,9 +1533,9 @@ public:
     if (V->getType() == DestTy)
       return V;
     if (V->getType()->isPtrOrPtrVectorTy() && DestTy->isIntOrIntVectorTy())
-      return CreateNewPtrToInt(V, DestTy, Name);
+      return CreatePtrToInt(V, DestTy, Name);
     if (V->getType()->isIntOrIntVectorTy() && DestTy->isPtrOrPtrVectorTy())
-      return CreateNewIntToPtr(V, DestTy, Name);
+      return CreateIntToPtr(V, DestTy, Name);
 
     return CreateBitCast(V, DestTy, Name);
   }

@@ -3234,7 +3234,7 @@ Value *InnerLoopVectorizer::getOrCreateTripCount(Loop *L) {
 
   if (TripCount->getType()->isPointerTy())
     TripCount =
-        new NewPtrToIntInst(TripCount, IdxTy, "exitcount.ptrcnt.to.int",
+        new PtrToIntInst(TripCount, IdxTy, "exitcount.ptrcnt.to.int",
                                     L->getLoopPreheader()->getTerminator());
 
   return TripCount;

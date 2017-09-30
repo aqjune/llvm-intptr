@@ -4215,9 +4215,9 @@ bool InstCombiner::transformConstExprCastCall(CallSite CS) {
   if (OldRetTy != NV->getType() && !Caller->use_empty()) {
     if (!NV->getType()->isVoidTy()) {
       if (NC->getType()->isIntOrIntVectorTy() && OldRetTy->isPtrOrPtrVectorTy())
-        NV = NC = new NewIntToPtrInst(NC, OldRetTy);
+        NV = NC = new IntToPtrInst(NC, OldRetTy);
       else if (NC->getType()->isPtrOrPtrVectorTy() && OldRetTy->isIntOrIntVectorTy())
-        NV = NC = new NewPtrToIntInst(NC, OldRetTy);
+        NV = NC = new PtrToIntInst(NC, OldRetTy);
       else
         NV = NC = CastInst::CreateBitOrPointerCast(NC, OldRetTy);
       NC->setDebugLoc(Caller->getDebugLoc());
