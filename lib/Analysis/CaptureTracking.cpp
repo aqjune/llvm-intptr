@@ -307,6 +307,9 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker) {
           return;
       break;
     }
+    case Instruction::PtrToInt:
+      // ptrtoint is no more capturer.
+      break;
     case Instruction::BitCast:
     case Instruction::GetElementPtr:
     case Instruction::PHI:
