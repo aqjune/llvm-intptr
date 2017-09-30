@@ -356,6 +356,10 @@ Value *llvm::FindAvailablePtrLoadStore(Value *Ptr, Type *AccessTy,
     if (isa<DbgInfoIntrinsic>(Inst))
       continue;
 
+    // capture instruction cannot affect loaded value!
+    if (isa<CaptureInst>(Inst))
+      continue;
+
     // Restore ScanFrom to expected value in case next test succeeds
     ScanFrom++;
 
