@@ -172,16 +172,16 @@ Instruction *InstCombiner::SimplifyElementUnorderedAtomicMemCpy(
 }
 
 Instruction *InstCombiner::SimplifyMemTransfer(MemIntrinsic *MI) {
-  return nullptr;
-  // unsigned DstAlign = getKnownAlignment(MI->getArgOperand(0), DL, MI, &AC, &DT);
-  // unsigned SrcAlign = getKnownAlignment(MI->getArgOperand(1), DL, MI, &AC, &DT);
-  // unsigned MinAlign = std::min(DstAlign, SrcAlign);
-  // unsigned CopyAlign = MI->getAlignment();
+  unsigned DstAlign = getKnownAlignment(MI->getArgOperand(0), DL, MI, &AC, &DT);
+  unsigned SrcAlign = getKnownAlignment(MI->getArgOperand(1), DL, MI, &AC, &DT);
+  unsigned MinAlign = std::min(DstAlign, SrcAlign);
+  unsigned CopyAlign = MI->getAlignment();
 
-  // if (CopyAlign < MinAlign) {
-  //   MI->setAlignment(ConstantInt::get(MI->getAlignmentType(), MinAlign, false));
-  //   return MI;
-  // }
+  if (CopyAlign < MinAlign) {
+    MI->setAlignment(ConstantInt::get(MI->getAlignmentType(), MinAlign, false));
+    return MI;
+  }
+  return nullptr;
 
   // // If MemCpyInst length is 1/2/4/8 bytes then replace memcpy with
   // // load/store.
