@@ -3715,6 +3715,15 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     }
     break;
   }
+
+  case Intrinsic::psub: {
+    Value *Op1 = II->getArgOperand(0);
+    Value *Op2 = II->getArgOperand(1);
+    if (Value *Res = OptimizePointerDifference(Op1, Op2, II->getType())) {
+      return replaceInstUsesWith(*II, Res);
+    }
+    break;
+  }
   }
   return visitCallSite(II);
 }
