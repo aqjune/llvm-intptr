@@ -3704,17 +3704,17 @@ static Value *SimplifyGEPInst(Type *SrcTy, ArrayRef<Value *> Ops,
                                                             BasePtrOffset);
 
       // gep (gep V, C), (sub 0, V) -> C
-      //if (match(Ops.back(),
-      //          m_Sub(m_Zero(), m_PtrToInt(m_Specific(StrippedBasePtr))))) {
-      //  auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset);
-      //  return ConstantExpr::getIntToPtr(CI, GEPTy);
-      //}
+      if (match(Ops.back(),
+                m_Sub(m_Zero(), m_PtrToInt(m_Specific(StrippedBasePtr))))) {
+        auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset);
+        return ConstantExpr::getIntToPtr(CI, GEPTy);
+      }
       // gep (gep V, C), (xor V, -1) -> C-1
-      //if (match(Ops.back(),
-      //          m_Xor(m_PtrToInt(m_Specific(StrippedBasePtr)), m_AllOnes()))) {
-      //  auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset - 1);
-      //  return ConstantExpr::getIntToPtr(CI, GEPTy);
-      //}
+      if (match(Ops.back(),
+                m_Xor(m_PtrToInt(m_Specific(StrippedBasePtr)), m_AllOnes()))) {
+        auto *CI = ConstantInt::get(GEPTy->getContext(), BasePtrOffset - 1);
+        return ConstantExpr::getIntToPtr(CI, GEPTy);
+      }
     }
   }
 
