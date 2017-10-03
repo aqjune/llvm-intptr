@@ -3316,6 +3316,10 @@ Value *InnerLoopVectorizer::createBitOrPointerCast(Value *V, VectorType *DstVTy,
   // Do a direct cast if element types are castable.
   if (CastInst::isBitOrNoopPointerCastable(SrcElemTy, DstElemTy, DL)) {
     return Builder.CreateBitOrPointerCast(V, DstVTy);
+  } else if (SrcElemTy->isPointerTy() && DstElemTy->isIntegerTy()) {
+    return Builder.CreatePtrToInt(V, DstVTy);
+  } else if (SrcElemTy->isIntegerTy() && DstElemTy->isPointerTy()) {
+    return Builder.CreateIntToPtr(V, DstVTy);
   }
   // V cannot be directly casted to desired vector type.
   // May happen when V is a floating point vector but DstVTy is a vector of
