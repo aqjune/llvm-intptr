@@ -59,12 +59,14 @@ PreserveAlignmentAssumptions("preserve-alignment-assumptions-during-inlining",
   cl::desc("Convert align attributes to assumptions during inlining."));
 
 bool llvm::InlineFunction(CallInst *CI, InlineFunctionInfo &IFI,
-                          AAResults *CalleeAAR, bool InsertLifetime) {
-  return InlineFunction(CallSite(CI), IFI, CalleeAAR, InsertLifetime);
+                          AAResults *CalleeAAR, bool InsertLifetime,
+                          const TargetLibraryInfo *TLI) {
+  return InlineFunction(CallSite(CI), IFI, CalleeAAR, InsertLifetime, TLI);
 }
 bool llvm::InlineFunction(InvokeInst *II, InlineFunctionInfo &IFI,
-                          AAResults *CalleeAAR, bool InsertLifetime) {
-  return InlineFunction(CallSite(II), IFI, CalleeAAR, InsertLifetime);
+                          AAResults *CalleeAAR, bool InsertLifetime,
+                          const TargetLibraryInfo *TLI) {
+  return InlineFunction(CallSite(II), IFI, CalleeAAR, InsertLifetime, TLI);
 }
 
 namespace {
@@ -874,7 +876,8 @@ static void CloneAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap) {
 /// parameters with noalias metadata specifying the new scope, and tag all
 /// non-derived loads, stores and memory intrinsics with the new alias scopes.
 static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
-                                  const DataLayout &DL, AAResults *CalleeAAR) {
+                                  const DataLayout &DL, AAResults *CalleeAAR,
+                                  const TargetLibraryInfo *TLI) {
   if (!EnableNoAliasConversion)
     return;
 
@@ -1055,7 +1058,7 @@ static void AddAliasScopeMetadata(CallSite CS, ValueToValueMapTy &VMap,
                                  // that the value cannot be locally captured.
                                  !PointerMayBeCapturedBefore(A,
                                    /* ReturnCaptures */ false,
-                                   /* StoreCaptures */ false, I, &DT)))
+                                   /* StoreCaptures */ false, I, &DT, TLI)))
           NoAliases.push_back(NewScopes[A]);
       }
 
@@ -1454,7 +1457,8 @@ static void updateCalleeCount(BlockFrequencyInfo *CallerBFI, BasicBlock *CallBB,
 /// exists in the instruction stream.  Similarly this will inline a recursive
 /// function by one level.
 bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
-                          AAResults *CalleeAAR, bool InsertLifetime) {
+                          AAResults *CalleeAAR, bool InsertLifetime,
+                          const TargetLibraryInfo *TLI) {
   Instruction *TheCall = CS.getInstruction();
   assert(TheCall->getParent() && TheCall->getFunction()
          && "Instruction not in function!");
@@ -1715,7 +1719,7 @@ bool llvm::InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
     CloneAliasScopeMetadata(CS, VMap);
 
     // Add noalias metadata if necessary.
-    AddAliasScopeMetadata(CS, VMap, DL, CalleeAAR);
+    AddAliasScopeMetadata(CS, VMap, DL, CalleeAAR, TLI);
 
     // Propagate llvm.mem.parallel_loop_access if necessary.
     PropagateParallelLoopAccessMetadata(CS, VMap);
