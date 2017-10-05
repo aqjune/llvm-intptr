@@ -1755,6 +1755,26 @@ static bool isGEPKnownNonNull(const GEPOperator *GEP, unsigned Depth,
   return false;
 }
 
+bool llvm::isGuaranteedToBeLogicalPointer(Value *V, const DataLayout &DL, LoopInfo *LI,
+                            const TargetLibraryInfo *TLI, unsigned MaxLookup) {
+  SmallVector<Value *, 4> Objects;
+  GetUnderlyingObjects(V, Objects, DL, LI, MaxLookup);
+  if (Objects.begin() == Objects.end())
+    return false;
+
+  for (auto itr = Objects.begin(); itr != Objects.end(); itr++) {
+    Value *V = *itr;
+    if (isa<AllocaInst>(V))
+      continue;
+    if (isa<GlobalObject>(V))
+      continue;
+    if (TLI && isAllocationFn(V, TLI, true))
+      continue;
+    return false;
+  }
+  return true;
+}
+
 /// Does the 'Range' metadata (which must be a valid MD_range operand list)
 /// ensure that the value it's attached to is never Value?  'RangeType' is
 /// is the type of the value described by the range.
