@@ -1118,7 +1118,7 @@ bool llvm::promoteLoopAccessesToScalars(
       // escaped even though its not captured by the enclosing function.
       // Standard allocation functions like malloc, calloc, and operator new
       // return values which can be assumed not to have previously escaped.
-      if (PointerMayBeCaptured(Object, true, true))
+      if (PointerMayBeCaptured(Object, true, true, TLI))
         return false;
       IsKnownNonEscapingObject = true;
     }
@@ -1240,7 +1240,7 @@ bool llvm::promoteLoopAccessesToScalars(
       Value *Object = GetUnderlyingObject(SomePtr, MDL);
       SafeToInsertStore =
           (isAllocLikeFn(Object, TLI) || isa<AllocaInst>(Object)) &&
-          !PointerMayBeCaptured(Object, true, true);
+          !PointerMayBeCaptured(Object, true, true, TLI);
     }
   }
 
