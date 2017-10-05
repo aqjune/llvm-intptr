@@ -158,6 +158,7 @@ namespace {
 /// counts as capturing it or not.
 bool llvm::PointerMayBeCaptured(const Value *V,
                                 bool ReturnCaptures, bool StoreCaptures,
+                                const TargetLibraryInfo *TLI,
                                 unsigned MaxUsesToExplore) {
   assert(!isa<GlobalValue>(V) &&
          "It doesn't make sense to ask whether a global is captured.");
@@ -169,7 +170,7 @@ bool llvm::PointerMayBeCaptured(const Value *V,
   (void)StoreCaptures;
 
   SimpleCaptureTracker SCT(ReturnCaptures);
-  PointerMayBeCaptured(V, &SCT, MaxUsesToExplore);
+  PointerMayBeCaptured(V, &SCT, TLI, MaxUsesToExplore);
   return SCT.Captured;
 }
 
@@ -185,15 +186,16 @@ bool llvm::PointerMayBeCaptured(const Value *V,
 /// queries about relative order among instructions in the same basic block.
 bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
                                       bool StoreCaptures, const Instruction *I,
-                                      const DominatorTree *DT, bool IncludeI,
-                                      OrderedBasicBlock *OBB,
+                                      const DominatorTree *DT,
+                                      const TargetLibraryInfo *TLI,
+                                      bool IncludeI, OrderedBasicBlock *OBB,
                                       unsigned MaxUsesToExplore) {
   assert(!isa<GlobalValue>(V) &&
          "It doesn't make sense to ask whether a global is captured.");
   bool UseNewOBB = OBB == nullptr;
 
   if (!DT)
-    return PointerMayBeCaptured(V, ReturnCaptures, StoreCaptures,
+    return PointerMayBeCaptured(V, ReturnCaptures, StoreCaptures, TLI,
                                 MaxUsesToExplore);
   if (UseNewOBB)
     OBB = new OrderedBasicBlock(I->getParent());
@@ -202,7 +204,7 @@ bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
   // with StoreCaptures.
 
   CapturesBefore CB(ReturnCaptures, I, DT, IncludeI, OBB);
-  PointerMayBeCaptured(V, &CB, MaxUsesToExplore);
+  PointerMayBeCaptured(V, &CB, TLI, MaxUsesToExplore);
 
   if (UseNewOBB)
     delete OBB;
@@ -210,6 +212,7 @@ bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
 }
 
 void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
+                                const TargetLibraryInfo *TLI,
                                 unsigned MaxUsesToExplore) {
   assert(V->getType()->isPointerTy() && "Capture is for pointers only!");
   SmallVector<const Use *, DefaultMaxUsesToExplore> Worklist;
@@ -234,6 +237,7 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
   while (!Worklist.empty()) {
     const Use *U = Worklist.pop_back_val();
     Instruction *I = cast<Instruction>(U->getUser());
+    const DataLayout &DL = I->getModule()->getDataLayout();
     V = U->get();
 
     switch (I->getOpcode()) {
@@ -264,6 +268,22 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
           if (Tracker->captured(U))
             return;
 
+      // psub intrinsics on logical pointer does not capture address. :)
+      if (auto *II = dyn_cast<IntrinsicInst>(I)) {
+        if (II->getIntrinsicID() == Intrinsic::psub) {
+          Value *AddrToCheck = nullptr;
+          if (II->getArgOperand(0) == V)
+            AddrToCheck = II->getArgOperand(1);
+          else if (II->getArgOperand(1) == V)
+            AddrToCheck = II->getArgOperand(0);
+          else
+            llvm_unreachable("at least one of argument should be Addr");
+          unsigned Depth = 6;
+          if (isGuaranteedToBeLogicalPointer(AddrToCheck, DL, nullptr,
+                                             TLI, Depth))
+            break;
+        }
+      }
       // Not captured if only passed via 'nocapture' arguments.  Note that
       // calling a function pointer does not in itself cause the pointer to
       // be captured.  This is a subtle point considering that (for example)

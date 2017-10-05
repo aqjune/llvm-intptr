@@ -251,6 +251,13 @@ class Value;
   bool isGEPBasedOnPointerToString(const GEPOperator *GEP,
                                    unsigned CharSize = 8);
 
+  /// Returns true if it is guaranteed that V is not based on a pointer casted
+  // from an integer.
+  bool isGuaranteedToBeLogicalPointer(Value *V, const DataLayout &DL,
+                                      LoopInfo *LI,
+                                      const TargetLibraryInfo *TLI,
+                                      unsigned MaxLookup);
+
   /// Represents offset+length into a ConstantDataArray.
   struct ConstantDataArraySlice {
     /// ConstantDataArray pointer. nullptr indicates a zeroinitializer (a valid

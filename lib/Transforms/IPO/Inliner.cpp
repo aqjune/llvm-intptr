@@ -276,7 +276,8 @@ static InlineResult InlineCallIfPossible(
     CallSite CS, InlineFunctionInfo &IFI,
     InlinedArrayAllocasTy &InlinedArrayAllocas, int InlineHistory,
     bool InsertLifetime, function_ref<AAResults &(Function &)> &AARGetter,
-    ImportedFunctionsInliningStatistics &ImportedFunctionsStats) {
+    ImportedFunctionsInliningStatistics &ImportedFunctionsStats,
+    const TargetLibraryInfo *TLI) {
   Function *Callee = CS.getCalledFunction();
   Function *Caller = CS.getCaller();
 
@@ -284,7 +285,7 @@ static InlineResult InlineCallIfPossible(
 
   // Try to inline the function.  Get the list of static allocas that were
   // inlined.
-  InlineResult IR = InlineFunction(CS, IFI, &AAR, InsertLifetime);
+  InlineResult IR = InlineFunction(CS, IFI, &AAR, InsertLifetime, nullptr, TLI);
   if (!IR)
     return IR;
 
@@ -685,7 +686,7 @@ inlineCallsImpl(CallGraphSCC &SCC, CallGraph &CG,
 
         InlineResult IR = InlineCallIfPossible(
             CS, InlineInfo, InlinedArrayAllocas, InlineHistoryID,
-            InsertLifetime, AARGetter, ImportedFunctionsStats);
+            InsertLifetime, AARGetter, ImportedFunctionsStats, &TLI);
         if (!IR) {
           setInlineRemark(CS, std::string(IR) + "; " + inlineCostStr(*OIC));
           ORE.emit([&]() {
