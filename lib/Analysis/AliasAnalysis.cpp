@@ -472,7 +472,7 @@ ModRefInfo AAResults::callCapturesBefore(const Instruction *I,
     return MRI_ModRef;
 
   if (llvm::PointerMayBeCapturedBefore(Object, /* ReturnCaptures */ true,
-                                       /* StoreCaptures */ true, I, DT,
+                                       /* StoreCaptures */ true, I, DT, &TLI,
                                        /* include Object */ true,
                                        /* OrderedBasicBlock */ OBB))
     return MRI_ModRef;
