@@ -146,7 +146,7 @@ static bool isLocallyOpenedFile(Value *File, CallInst *CI, IRBuilder<> &B,
     return false;
 
   inferLibFuncAttributes(*CI->getCalledFunction(), *TLI);
-  if (PointerMayBeCaptured(File, true, true))
+  if (PointerMayBeCaptured(File, true, true, TLI))
     return false;
 
   return true;

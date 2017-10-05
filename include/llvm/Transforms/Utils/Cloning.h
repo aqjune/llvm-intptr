@@ -232,14 +232,17 @@ public:
 /// are only used by ForwardVarArgsTo.
 InlineResult InlineFunction(CallInst *C, InlineFunctionInfo &IFI,
                             AAResults *CalleeAAR = nullptr,
-                            bool InsertLifetime = true);
+                            bool InsertLifetime = true,
+                            const TargetLibraryInfo *TLI = nullptr);
 InlineResult InlineFunction(InvokeInst *II, InlineFunctionInfo &IFI,
                             AAResults *CalleeAAR = nullptr,
-                            bool InsertLifetime = true);
+                            bool InsertLifetime = true,
+                            const TargetLibraryInfo *TLI = nullptr);
 InlineResult InlineFunction(CallSite CS, InlineFunctionInfo &IFI,
                             AAResults *CalleeAAR = nullptr,
                             bool InsertLifetime = true,
-                            Function *ForwardVarArgsTo = nullptr);
+                            Function *ForwardVarArgsTo = nullptr,
+                            const TargetLibraryInfo *TLI = nullptr);
 
 /// Clones a loop \p OrigLoop.  Returns the loop and the blocks in \p
 /// Blocks.

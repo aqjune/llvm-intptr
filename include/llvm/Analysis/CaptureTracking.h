@@ -21,6 +21,7 @@ namespace llvm {
   class Instruction;
   class DominatorTree;
   class OrderedBasicBlock;
+  class TargetLibraryInfo;
 
   /// The default value for MaxUsesToExplore argument. It's relatively small to
   /// keep the cost of analysis reasonable for clients like BasicAliasAnalysis,
@@ -42,6 +43,7 @@ namespace llvm {
   bool PointerMayBeCaptured(const Value *V,
                             bool ReturnCaptures,
                             bool StoreCaptures,
+                            const TargetLibraryInfo *TLI,
                             unsigned MaxUsesToExplore = DefaultMaxUsesToExplore);
 
   /// PointerMayBeCapturedBefore - Return true if this pointer value may be
@@ -59,7 +61,8 @@ namespace llvm {
   /// one value before giving up due too "too many uses".
   bool PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
                                   bool StoreCaptures, const Instruction *I,
-                                  const DominatorTree *DT, bool IncludeI = false,
+                                  const DominatorTree *DT, const TargetLibraryInfo *TLI,
+                                  bool IncludeI = false,
                                   OrderedBasicBlock *OBB = nullptr,
                                   unsigned MaxUsesToExplore = DefaultMaxUsesToExplore);
 
@@ -92,6 +95,7 @@ namespace llvm {
   /// MaxUsesToExplore specifies how many uses should the analysis explore for
   /// one value before giving up due too "too many uses".
   void PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
+                            const TargetLibraryInfo *TLI,
                             unsigned MaxUsesToExplore = DefaultMaxUsesToExplore);
 } // end namespace llvm
 
