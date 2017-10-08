@@ -471,39 +471,58 @@ ModRefInfo AAResults::callCapturesBefore(const Instruction *I,
   if (!CS.getInstruction() || CS.getInstruction() == Object)
     return MRI_ModRef;
 
-  if (llvm::PointerMayBeCapturedBefore(Object, /* ReturnCaptures */ true,
-                                       /* StoreCaptures */ true, I, DT, &TLI,
-                                       /* include Object */ true,
-                                       /* OrderedBasicBlock */ OBB))
-    return MRI_ModRef;
+  // CallbackFunc is a function that PointerMayBeCapturedBefore calls
+  // whenever it visits use of a pointer which is based on Object.
+  // This CallbackFunc updates ArgModRefInfo, which is mod/ref info
+  // telling whether call site I mod/refs a pointer based on Object.
+  // Capturing a pointer is always regarded as MRI_ModRef.
+  ModRefInfo ArgModRefInfo = MRI_NoModRef;
+  auto CallbackFunc = [&ArgModRefInfo, &I, &CS, &Object](const Use* U) {
+    if (U->getUser() != I)
+      // Interested in instruction I only.
+      return;
+    if (ArgModRefInfo == MRI_ModRef)
+      // Already in the worst case.
+      return;
 
-  unsigned ArgNo = 0;
-  ModRefInfo R = MRI_NoModRef;
-  for (auto CI = CS.data_operands_begin(), CE = CS.data_operands_end();
-       CI != CE; ++CI, ++ArgNo) {
-    // Only look at the no-capture or byval pointer arguments.  If this
-    // pointer were passed to arguments that were neither of these, then it
-    // couldn't be no-capture.
-    if (!(*CI)->getType()->isPointerTy() ||
-        (!CS.doesNotCapture(ArgNo) &&
-         ArgNo < CS.getNumArgOperands() && !CS.isByValArgument(ArgNo)))
-      continue;
+    const Value *V = U->get();
+    unsigned ArgNo = 0;
+    for (auto CI = CS.data_operands_begin(), CE = CS.data_operands_end();
+         CI != CE; ++CI, ++ArgNo) {
+      if (V != (*CI))
+        continue;
+      // If V is passed to argument which is neither nocapture nor byval,
+      // the callee (call site I) captures the pointer V. In this case, return
+      // value of callCapturesBefore is set to be MRI_ModRef.
+      if (!CS.doesNotCapture(ArgNo) &&
+           ArgNo < CS.getNumArgOperands() && !CS.isByValArgument(ArgNo)) {
+        ArgModRefInfo = MRI_ModRef;
+        break;
+      }
 
-    // If this is a no-capture pointer argument, see if we can tell that it
-    // is impossible to alias the pointer we're checking.  If not, we have to
-    // assume that the call could touch the pointer, even though it doesn't
-    // escape.
-    if (isNoAlias(MemoryLocation(*CI), MemoryLocation(Object)))
-      continue;
-    if (CS.doesNotAccessMemory(ArgNo))
-      continue;
-    if (CS.onlyReadsMemory(ArgNo)) {
-      R = MRI_Ref;
-      continue;
+      // If ArgNo'th argument of CS does not access memory, then ArgModRefInfo
+      // does not need to be updated.
+      if (CS.doesNotAccessMemory(ArgNo))
+        continue;
+      // If ArgNo'th argument of CS only reads memory, ArgModRefInfo is
+      // MRI_Ref.
+      if (CS.onlyReadsMemory(ArgNo)) {
+        ArgModRefInfo = MRI_Ref;
+        continue;
+      }
+      // Otherwise, callee may modify memory.
+      ArgModRefInfo = MRI_ModRef;
+      break;
     }
+  };
+  if (llvm::PointerMayBeCapturedBefore(Object, /* ReturnCaptures */ true,
+                                 /* StoreCaptures */ true, I, DT, &TLI,
+                                 /* include Object */ true,
+                                 /* OrderedBasicBlock */ OBB,
+                                 /* Callback function*/ CallbackFunc))
     return MRI_ModRef;
-  }
-  return R;
+
+  return ArgModRefInfo;
 }
 
 /// canBasicBlockModify - Return true if it is possible for execution of the
