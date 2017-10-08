@@ -14,6 +14,8 @@
 #ifndef LLVM_ANALYSIS_CAPTURETRACKING_H
 #define LLVM_ANALYSIS_CAPTURETRACKING_H
 
+#include <functional>
+
 namespace llvm {
 
   class Value;
@@ -64,7 +66,8 @@ namespace llvm {
                                   const DominatorTree *DT, const TargetLibraryInfo *TLI,
                                   bool IncludeI = false,
                                   OrderedBasicBlock *OBB = nullptr,
-                                  unsigned MaxUsesToExplore = DefaultMaxUsesToExplore);
+                                  unsigned MaxUsesToExplore = DefaultMaxUsesToExplore,
+                                  std::function<void(const Use*)> CallbackFunc = nullptr);
 
   /// This callback is used in conjunction with PointerMayBeCaptured. In
   /// addition to the interface here, you'll need to provide your own getters
@@ -96,7 +99,8 @@ namespace llvm {
   /// one value before giving up due too "too many uses".
   void PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
                             const TargetLibraryInfo *TLI,
-                            unsigned MaxUsesToExplore = DefaultMaxUsesToExplore);
+                            unsigned MaxUsesToExplore = DefaultMaxUsesToExplore,
+                            std::function<void(const Use*)> CallbackFunc = nullptr);
 } // end namespace llvm
 
 #endif
