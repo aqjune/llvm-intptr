@@ -168,7 +168,7 @@ bool llvm::PointerMayBeCaptured(const Value *V,
   (void)StoreCaptures;
 
   SimpleCaptureTracker SCT(ReturnCaptures);
-  PointerMayBeCaptured(V, &SCT);
+  PointerMayBeCaptured(V, &SCT, (std::function<void(const Use*)>)nullptr);
   return SCT.Captured;
 }
 
@@ -185,7 +185,8 @@ bool llvm::PointerMayBeCaptured(const Value *V,
 bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
                                       bool StoreCaptures, const Instruction *I,
                                       DominatorTree *DT, bool IncludeI,
-                                      OrderedBasicBlock *OBB) {
+                                      OrderedBasicBlock *OBB,
+                                      std::function<void(const Use*)> CallbackFunc) {
   assert(!isa<GlobalValue>(V) &&
          "It doesn't make sense to ask whether a global is captured.");
   bool UseNewOBB = OBB == nullptr;
@@ -199,7 +200,7 @@ bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
   // with StoreCaptures.
 
   CapturesBefore CB(ReturnCaptures, I, DT, IncludeI, OBB);
-  PointerMayBeCaptured(V, &CB);
+  PointerMayBeCaptured(V, &CB, CallbackFunc);
 
   if (UseNewOBB)
     delete OBB;
@@ -211,7 +212,8 @@ bool llvm::PointerMayBeCapturedBefore(const Value *V, bool ReturnCaptures,
 /// that path, and remove this threshold.
 static int const Threshold = 20;
 
-void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker) {
+void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
+                                std::function<void(const Use*)> CallbackFunc) {
   assert(V->getType()->isPointerTy() && "Capture is for pointers only!");
   SmallVector<const Use *, Threshold> Worklist;
   SmallSet<const Use *, Threshold> Visited;
@@ -232,6 +234,8 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker) {
     const Use *U = Worklist.pop_back_val();
     Instruction *I = cast<Instruction>(U->getUser());
     V = U->get();
+    if (CallbackFunc)
+      CallbackFunc(U);
 
     switch (I->getOpcode()) {
     case Instruction::Call:
