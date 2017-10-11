@@ -698,13 +698,13 @@ Value *SimplifyCFGOpt::isValueEqualityComparison(TerminatorInst *TI) {
       }
 
   // Unwrap any lossless ptrtoint cast.
-  //if (CV) {
-  //  if (PtrToIntInst *PTII = dyn_cast<PtrToIntInst>(CV)) {
-  //    Value *Ptr = PTII->getPointerOperand();
-  //    if (PTII->getType() == DL.getIntPtrType(Ptr->getType()))
-  //      CV = Ptr;
-  //  }
-  //}
+  if (CV) {
+    if (PtrToIntInst *PTII = dyn_cast<PtrToIntInst>(CV)) {
+      Value *Ptr = PTII->getPointerOperand();
+      if (PTII->getType() == DL.getIntPtrType(Ptr->getType()))
+        CV = Ptr;
+    }
+  }
   return CV;
 }
 
