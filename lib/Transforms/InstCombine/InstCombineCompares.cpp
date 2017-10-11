@@ -3392,8 +3392,7 @@ Instruction *InstCombiner::foldICmpWithCastAndCast(ICmpInst &ICmp) {
 
   // Turn icmp (ptrtoint x), (ptrtoint/c) into a compare of the input if the
   // integer type is the same size as the pointer type.
-  /*
-   * if (LHSCI->getOpcode() == Instruction::PtrToInt &&
+  if (LHSCI->getOpcode() == Instruction::PtrToInt &&
       DL.getPointerTypeSizeInBits(SrcTy) == DestTy->getIntegerBitWidth()) {
     Value *RHSOp = nullptr;
     if (auto *RHSC = dyn_cast<PtrToIntOperator>(ICmp.getOperand(1))) {
@@ -3411,7 +3410,7 @@ Instruction *InstCombiner::foldICmpWithCastAndCast(ICmpInst &ICmp) {
 
     if (RHSOp)
       return new ICmpInst(ICmp.getPredicate(), LHSCIOp, RHSOp);
-  }*/
+  }
 
   // The code below only handles extension cast instructions, so far.
   // Enforce this.
