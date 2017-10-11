@@ -1979,64 +1979,6 @@ computePointerICmp(const DataLayout &DL, const TargetLibraryInfo *TLI,
 
   // Various optimizations for (in)equality comparisons.
   if (Pred == CmpInst::ICMP_EQ || Pred == CmpInst::ICMP_NE) {
-    // Different non-empty allocations that exist at the same time have
-    // different addresses (if the program can tell). Global variables always
-    // exist, so they always exist during the lifetime of each other and all
-    // allocas. Two different allocas usually have different addresses...
-    //
-    // However, if there's an @llvm.stackrestore dynamically in between two
-    // allocas, they may have the same address. It's tempting to reduce the
-    // scope of the problem by only looking at *static* allocas here. That would
-    // cover the majority of allocas while significantly reducing the likelihood
-    // of having an @llvm.stackrestore pop up in the middle. However, it's not
-    // actually impossible for an @llvm.stackrestore to pop up in the middle of
-    // an entry block. Also, if we have a block that's not attached to a
-    // function, we can't tell if it's "static" under the current definition.
-    // Theoretically, this problem could be fixed by creating a new kind of
-    // instruction kind specifically for static allocas. Such a new instruction
-    // could be required to be at the top of the entry block, thus preventing it
-    // from being subject to a @llvm.stackrestore. Instcombine could even
-    // convert regular allocas into these special allocas. It'd be nifty.
-    // However, until then, this problem remains open.
-    //
-    // So, we'll assume that two non-empty allocas have different addresses
-    // for now.
-    //
-    // With all that, if the offsets are within the bounds of their allocations
-    // (and not one-past-the-end! so we can't use inbounds!), and their
-    // allocations aren't the same, the pointers are not equal.
-    //
-    // Note that it's not necessary to check for LHS being a global variable
-    // address, due to canonicalization and constant folding.
-    if (isa<AllocaInst>(LHS) &&
-        (isa<AllocaInst>(RHS) || isa<GlobalVariable>(RHS))) {
-      ConstantInt *LHSOffsetCI = dyn_cast<ConstantInt>(LHSOffset);
-      ConstantInt *RHSOffsetCI = dyn_cast<ConstantInt>(RHSOffset);
-      uint64_t LHSSize, RHSSize;
-      if (LHSOffsetCI && RHSOffsetCI &&
-          getObjectSize(LHS, LHSSize, DL, TLI) &&
-          getObjectSize(RHS, RHSSize, DL, TLI)) {
-        const APInt &LHSOffsetValue = LHSOffsetCI->getValue();
-        const APInt &RHSOffsetValue = RHSOffsetCI->getValue();
-        if (!LHSOffsetValue.isNegative() &&
-            !RHSOffsetValue.isNegative() &&
-            LHSOffsetValue.ult(LHSSize) &&
-            RHSOffsetValue.ult(RHSSize)) {
-          return ConstantInt::get(GetCompareTy(LHS),
-                                  !CmpInst::isTrueWhenEqual(Pred));
-        }
-      }
-
-      // Repeat the above check but this time without depending on DataLayout
-      // or being able to compute a precise size.
-      if (!cast<PointerType>(LHS->getType())->isEmptyTy() &&
-          !cast<PointerType>(RHS->getType())->isEmptyTy() &&
-          LHSOffset->isNullValue() &&
-          RHSOffset->isNullValue())
-        return ConstantInt::get(GetCompareTy(LHS),
-                                !CmpInst::isTrueWhenEqual(Pred));
-    }
-
     // Even if an non-inbounds GEP occurs along the path we can still optimize
     // equality comparisons concerning the result. We avoid walking the whole
     // chain again by starting where the last calls to
@@ -2047,61 +1989,6 @@ computePointerICmp(const DataLayout &DL, const TargetLibraryInfo *TLI,
       return ConstantExpr::getICmp(Pred,
                                    ConstantExpr::getAdd(LHSOffset, LHSNoBound),
                                    ConstantExpr::getAdd(RHSOffset, RHSNoBound));
-
-    // If one side of the equality comparison must come from a noalias call
-    // (meaning a system memory allocation function), and the other side must
-    // come from a pointer that cannot overlap with dynamically-allocated
-    // memory within the lifetime of the current function (allocas, byval
-    // arguments, globals), then determine the comparison result here.
-    SmallVector<Value *, 8> LHSUObjs, RHSUObjs;
-    GetUnderlyingObjects(LHS, LHSUObjs, DL);
-    GetUnderlyingObjects(RHS, RHSUObjs, DL);
-
-    // Is the set of underlying objects all noalias calls?
-    auto IsNAC = [](ArrayRef<Value *> Objects) {
-      return all_of(Objects, isNoAliasCall);
-    };
-
-    // Is the set of underlying objects all things which must be disjoint from
-    // noalias calls. For allocas, we consider only static ones (dynamic
-    // allocas might be transformed into calls to malloc not simultaneously
-    // live with the compared-to allocation). For globals, we exclude symbols
-    // that might be resolve lazily to symbols in another dynamically-loaded
-    // library (and, thus, could be malloc'ed by the implementation).
-    auto IsAllocDisjoint = [](ArrayRef<Value *> Objects) {
-      return all_of(Objects, [](Value *V) {
-        if (const AllocaInst *AI = dyn_cast<AllocaInst>(V))
-          return AI->getParent() && AI->getFunction() && AI->isStaticAlloca();
-        if (const GlobalValue *GV = dyn_cast<GlobalValue>(V))
-          return (GV->hasLocalLinkage() || GV->hasHiddenVisibility() ||
-                  GV->hasProtectedVisibility() || GV->hasGlobalUnnamedAddr()) &&
-                 !GV->isThreadLocal();
-        if (const Argument *A = dyn_cast<Argument>(V))
-          return A->hasByValAttr();
-        return false;
-      });
-    };
-
-    if ((IsNAC(LHSUObjs) && IsAllocDisjoint(RHSUObjs)) ||
-        (IsNAC(RHSUObjs) && IsAllocDisjoint(LHSUObjs)))
-        return ConstantInt::get(GetCompareTy(LHS),
-                                !CmpInst::isTrueWhenEqual(Pred));
-
-    // Fold comparisons for non-escaping pointer even if the allocation call
-    // cannot be elided. We cannot fold malloc comparison to null. Also, the
-    // dynamic allocation call could be either of the operands.
-    Value *MI = nullptr;
-    if (isAllocLikeFn(LHS, TLI) &&
-        llvm::isKnownNonZero(RHS, DL, 0, nullptr, CxtI, DT))
-      MI = LHS;
-    else if (isAllocLikeFn(RHS, TLI) &&
-             llvm::isKnownNonZero(LHS, DL, 0, nullptr, CxtI, DT))
-      MI = RHS;
-    // FIXME: We should also fold the compare when the pointer escapes, but the
-    // compare dominates the pointer escape
-    if (MI && !PointerMayBeCaptured(MI, true, true))
-      return ConstantInt::get(GetCompareTy(LHS),
-                              CmpInst::isFalseWhenEqual(Pred));
   }
 
   // Otherwise, fail.
