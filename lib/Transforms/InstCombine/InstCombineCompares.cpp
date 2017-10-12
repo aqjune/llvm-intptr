@@ -1103,6 +1103,16 @@ Instruction *InstCombiner::foldAllocaCmp(ICmpInst &ICI,
     } else if (isa<ICmpInst>(V)) {
       if (NumCmps++)
         return nullptr; // Found more than one cmp.
+      // Check whether this comparison is done only once in this function.
+      const BasicBlock *ICIBB = dyn_cast<ICmpInst>(V)->getParent();
+      if (LI && LI->getLoopFor(ICIBB) != nullptr) {
+        // This comparison is in a loop.
+        return nullptr; 
+      } else {
+        // Be conservative.
+        if (Alloca->getParent() != ICIBB)
+          return nullptr;
+      }
       continue;
     } else if (const auto *Intrin = dyn_cast<IntrinsicInst>(V)) {
       switch (Intrin->getIntrinsicID()) {
