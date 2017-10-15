@@ -607,35 +607,6 @@ static Instruction *combineLoadToOperationType(InstCombiner &IC, LoadInst &LI) {
 
   Type *Ty = LI.getType();
   const DataLayout &DL = IC.getDataLayout();
-
-  // Try to canonicalize integer loads which are only ever stored to operate
-  // over i8* pointers. The width of the integer should be equal to the
-  // size of a pointer.
-  PointerType *I8PtrTy = PointerType::get(
-        Type::getIntNTy(LI.getContext(), 8), 0);
-  if ((Ty->isPointerTy() && Ty != I8PtrTy) ||
-      (Ty->isIntegerTy() &&
-      Ty->getIntegerBitWidth() == DL.getPointerSizeInBits(0))) {
-    if (all_of(LI.users(), [&LI](User *U) {
-          auto *SI = dyn_cast<StoreInst>(U);
-          return SI && SI->getPointerOperand() != &LI &&
-                 !SI->getPointerOperand()->isSwiftError();
-        })) {
-      LoadInst *NewLoad = combineLoadToNewType(IC, LI, I8PtrTy);
-
-      // Replace all the stores with stores of the newly loaded value.
-      for (auto UI = LI.user_begin(), UE = LI.user_end(); UI != UE;) {
-        auto *SI = cast<StoreInst>(*UI++);
-        IC.Builder.SetInsertPoint(SI);
-        combineStoreToNewValue(IC, *SI, NewLoad);
-        IC.eraseInstFromFunction(*SI);
-      }
-      assert(LI.use_empty() && "Failed to remove all users of the load!");
-      // Return the old load so the combiner can delete it safely.
-      return &LI;
-    }
-  }
-
   // Try to canonicalize loads which are only ever stored to operate over
   // integers instead of any other type. We only do this when the loaded type
   // is sized and has a size exactly the same as its store size and the store
