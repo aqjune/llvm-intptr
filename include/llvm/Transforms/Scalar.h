@@ -44,6 +44,13 @@ FunctionPass *createInitialIntPtrFoldPass();
 
 //===----------------------------------------------------------------------===//
 //
+// CanonicalizeTypeToI8Ptr - Canonicalize "load/store i64/ptrty" to
+// "load/store i8*". This is needed to help vectorization.
+//
+FunctionPass *createCanonicalizeTypeToI8PtrPass();
+
+//===----------------------------------------------------------------------===//
+//
 // AlignmentFromAssumptions - Use assume intrinsics to set load/store
 // alignments.
 //
