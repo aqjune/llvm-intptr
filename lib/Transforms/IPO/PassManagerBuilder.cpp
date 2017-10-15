@@ -389,8 +389,10 @@ void PassManagerBuilder::addFunctionSimplificationPasses(
 
   if (RerollLoops)
     MPM.add(createLoopRerollPass());
-  if (!RunSLPAfterLoopVectorization && SLPVectorize)
+  if (!RunSLPAfterLoopVectorization && SLPVectorize) {
+    MPM.add(createCanonicalizeTypeToI8PtrPass());
     MPM.add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
+  }
 
   MPM.add(createAggressiveDCEPass());         // Delete dead instructions
   MPM.add(createCFGSimplificationPass()); // Merge & remove BBs
@@ -623,6 +625,7 @@ void PassManagerBuilder::populateModulePassManager(
   }
 
   if (RunSLPAfterLoopVectorization && SLPVectorize) {
+    MPM.add(createCanonicalizeTypeToI8PtrPass());
     MPM.add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
     if (OptLevel > 1 && ExtraVectorizerPasses) {
       MPM.add(createEarlyCSEPass());
@@ -812,8 +815,10 @@ void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
 
   // More scalar chains could be vectorized due to more alias information
   if (RunSLPAfterLoopVectorization)
-    if (SLPVectorize)
+    if (SLPVectorize) {
+      PM.add(createCanonicalizeTypeToI8PtrPass());
       PM.add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
+    }
 
   // After vectorization, assume intrinsics may tell us more about pointer
   // alignments.
