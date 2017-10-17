@@ -1563,9 +1563,9 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, uint64_t V1Size,
       return NoAlias;
 
     // Constant pointers can't alias with non-const isIdentifiedObject objects.
-    if ((isa<Constant>(O1) && isNonEscapingLocalObject(O2) &&
+    if ((isa<Constant>(O1) && isNonEscapingLocalObject(O2, &TLI) &&
          !isa<Constant>(O2)) ||
-        (isa<Constant>(O2) && isNonEscapingLocalObject(O1) &&
+        (isa<Constant>(O2) && isNonEscapingLocalObject(O1, &TLI) &&
          !isa<Constant>(O1)))
       return NoAlias;
 
