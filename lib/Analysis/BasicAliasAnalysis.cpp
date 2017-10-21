@@ -1127,6 +1127,10 @@ bool BasicAAResult::isGEPBaseAtNegativeOffset(const GEPOperator *GEPOp,
   // We need the object to be an alloca or a globalvariable, and want to know
   // the offset of the pointer from the object precisely, so no variable
   // indices are allowed.
+  // JYLEE: Limit this case only to the logical pointer.
+  if (!(isa<AllocaInst>(DecompGEP.Base) ||
+        isa<GlobalVariable>(DecompObject.Base)))
+    return false;
   if (!(isa<AllocaInst>(DecompObject.Base) ||
         isa<GlobalVariable>(DecompObject.Base)) ||
       !DecompObject.VarIndices.empty())
@@ -1174,18 +1178,18 @@ AliasResult BasicAAResult::aliasGEP(const GEPOperator *GEP1, uint64_t V1Size,
   // If the GEP's offset relative to its base is such that the base would
   // fall below the start of the object underlying V2, then the GEP and V2
   // cannot alias.
-  //if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
-    //  isGEPBaseAtNegativeOffset(GEP1, DecompGEP1, DecompGEP2, V2Size))
-    //return NoAlias;
+  if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
+      isGEPBaseAtNegativeOffset(GEP1, DecompGEP1, DecompGEP2, V2Size))
+    return NoAlias;
   // If we have two gep instructions with must-alias or not-alias'ing base
   // pointers, figure out if the indexes to the GEP tell us anything about the
   // derived pointer.
   if (const GEPOperator *GEP2 = dyn_cast<GEPOperator>(V2)) {
     // Check for the GEP base being at a negative offset, this time in the other
     // direction.
-    //if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
-    //    isGEPBaseAtNegativeOffset(GEP2, DecompGEP2, DecompGEP1, V1Size))
-    //  return NoAlias;
+    if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
+        isGEPBaseAtNegativeOffset(GEP2, DecompGEP2, DecompGEP1, V1Size))
+      return NoAlias;
     // Do the base pointers alias?
     AliasResult BaseAlias =
         aliasCheck(UnderlyingV1, MemoryLocation::UnknownSize, AAMDNodes(),
