@@ -32,6 +32,8 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 using namespace llvm::PatternMatch;
 
@@ -529,7 +531,7 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
   }
 
   if (V->isNullValue() && !DestTy->isX86_MMXTy() &&
-      opc != Instruction::AddrSpaceCast)
+      opc != Instruction::AddrSpaceCast && opc != Instruction::IntToPtr)
     return Constant::getNullValue(DestTy);
 
   // If the cast operand is a constant expression, there's a few things we can
@@ -616,8 +618,8 @@ Constant *llvm::ConstantFoldCastInstruction(unsigned opc, Constant *V,
     }
     return nullptr; // Can't fold.
   case Instruction::IntToPtr:   //always treated as unsigned
-    if (V->isNullValue())       // Is it an integral null value?
-      return ConstantPointerNull::get(cast<PointerType>(DestTy));
+    //if (V->isNullValue())       // Is it an integral null value?
+    //  return ConstantPointerNull::get(cast<PointerType>(DestTy));
     return nullptr;                   // Other pointer types cannot be casted
   case Instruction::PtrToInt:   // always treated as unsigned
     // Is it a null pointer value?
