@@ -336,7 +336,6 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
     case Instruction::GetElementPtr:
     case Instruction::PHI:
     case Instruction::Select:
-    case Instruction::AddrSpaceCast:
       // The original value is not captured via this if the new value isn't.
       Count = 0;
       for (Use &UU : I->uses()) {
