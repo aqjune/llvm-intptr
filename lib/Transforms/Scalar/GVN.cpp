@@ -2010,19 +2010,20 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
             if (!OpPtr2Int) {
               OpPtr2Int = new
                 PtrToIntInst(Op0, Ptr2IntTy,
-                             Op0->getName() + ".ptr2int", BI);
+                             Op0->getName() + ".ptr2int", Cmp);
 
             }
             if (!OpInt2Ptr) {
               OpInt2Ptr = new
                 IntToPtrInst(OpPtr2Int, Op0->getType(),
-                             Op0->getName() + ".int2ptr", BI);
+                             Op0->getName() + ".int2ptr", Cmp);
 
             }
-
             // Store the IntToPtrInst, for clean up
             IntToPtrInstCreated.insert(OpInt2Ptr);
+            Cmp->setOperand(0, OpInt2Ptr);
             Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
+            Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
           }
         }
         else Worklist.push_back(std::make_pair(Op0, Op1));
