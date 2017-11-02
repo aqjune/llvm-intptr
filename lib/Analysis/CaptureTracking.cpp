@@ -362,12 +362,12 @@ void llvm::PointerMayBeCaptured(const Value *V, CaptureTracker *Tracker,
       // does not escape, its value cannot be guessed and stored separately in a
       // global variable.
       unsigned OtherIndex = (I->getOperand(0) == V) ? 1 : 0;
-      auto *LI = dyn_cast<LoadInst>(I->getOperand(OtherIndex));
-      if (LI && isa<GlobalVariable>(LI->getPointerOperand()))
-        break;
+      //auto *LI = dyn_cast<LoadInst>(I->getOperand(OtherIndex));
+      //if (LI && isa<GlobalVariable>(LI->getPointerOperand()))
+      //  break;
       // Comparison against logical pointer does not capture.
       Value *AddrToCheck = I->getOperand(OtherIndex);
-      unsigned Depth = 4;
+      unsigned Depth = 6;
       if (isGuaranteedToBeLogicalPointer(AddrToCheck, DL, nullptr, TLI, Depth))
         break;
       // Otherwise, be conservative. There are crazy ways to capture pointers
