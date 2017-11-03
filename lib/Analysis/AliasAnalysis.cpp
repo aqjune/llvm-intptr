@@ -24,6 +24,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/CFLAndersAliasAnalysis.h"
@@ -99,13 +100,28 @@ bool AAResults::invalidate(Function &F, const PreservedAnalyses &PA,
 // Default chaining methods
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "aacount"
+
+STATISTIC(NumAANoAlias,  "Number_of_NoAlias");
+STATISTIC(NumAAMustAlias,   "Number_of_MustAlias");
+STATISTIC(NumAAPartialAlias,    "Number_of_PartialAlias");
+STATISTIC(NumAAMayAlias, "Number_of_MayAlias");
+
 AliasResult AAResults::alias(const MemoryLocation &LocA,
                              const MemoryLocation &LocB) {
   for (const auto &AA : AAs) {
     auto Result = AA->alias(LocA, LocB);
-    if (Result != MayAlias)
+    if (Result != MayAlias) {
+      if (Result == NoAlias)
+        NumAANoAlias++;
+      else if (Result == MustAlias)
+        NumAAMustAlias++;
+      else if (Result == PartialAlias)
+        NumAAPartialAlias++;
       return Result;
+    }
   }
+  NumAAMayAlias++;
   return MayAlias;
 }
 
