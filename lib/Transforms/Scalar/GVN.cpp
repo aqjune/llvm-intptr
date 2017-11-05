@@ -2112,23 +2112,27 @@ bool GVN::processInstruction(Instruction *I) {
   // example if it determines that %y is equal to %x then the instruction
   // "%z = and i32 %x, %y" becomes "%z = and i32 %x, %x" which we now simplify.
   const DataLayout &DL = I->getModule()->getDataLayout();
-  if (Value *V = SimplifyInstruction(I, {DL, TLI, DT, AC})) {
-    bool Changed = false;
-    if (!I->use_empty()) {
-      I->replaceAllUsesWith(V);
-      Changed = true;
+
+  // Do not simplify inttoptr or ptrtoint here, to prevent GVN from
+  // loop infinitely within it self.
+  if (!(isa<IntToPtrInst>(I) || isa<PtrToIntInst>(I)))
+    if (Value *V = SimplifyInstruction(I, {DL, TLI, DT, AC})) {
+      bool Changed = false;
+      if (!I->use_empty()) {
+        I->replaceAllUsesWith(V);
+        Changed = true;
+      }
+      if (isInstructionTriviallyDead(I, TLI)) {
+        markInstructionForDeletion(I);
+        Changed = true;
+      }
+      if (Changed) {
+        if (MD && V->getType()->isPtrOrPtrVectorTy())
+          MD->invalidateCachedPointerInfo(V);
+        ++NumGVNSimpl;
+        return true;
+      }
     }
-    if (isInstructionTriviallyDead(I, TLI)) {
-      markInstructionForDeletion(I);
-      Changed = true;
-    }
-    if (Changed) {
-      if (MD && V->getType()->isPtrOrPtrVectorTy())
-        MD->invalidateCachedPointerInfo(V);
-      ++NumGVNSimpl;
-      return true;
-    }
-  }
 
   if (IntrinsicInst *IntrinsicI = dyn_cast<IntrinsicInst>(I))
     if (IntrinsicI->getIntrinsicID() == Intrinsic::assume)
