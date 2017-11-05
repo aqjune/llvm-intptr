@@ -1825,9 +1825,8 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 }
 
 bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
-                                  bool DominatesByEdge, BranchInst *BI) {
+                                  bool DominatesByEdge) {
   SetVector<IntToPtrInst *> IntToPtrInstCreated;
-  const DataLayout &DL = BI->getModule()->getDataLayout();
   SmallVector<std::pair<Value*, Value*>, 4> Worklist;
   Worklist.push_back(std::make_pair(LHS, RHS));
   bool Changed = false;
@@ -1939,6 +1938,7 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
     // "(A >= B)" == "true", replace all instances of "A < B" with "false".
     if (CmpInst *Cmp = dyn_cast<CmpInst>(LHS)) {
       Value *Op0 = Cmp->getOperand(0), *Op1 = Cmp->getOperand(1);
+      const DataLayout &DL = Cmp->getModule()->getDataLayout();
 
       // If "A == B" is known true, or "A != B" is known false, then replace
       // A with B everywhere in the scope.
@@ -1983,12 +1983,12 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
             // Find if there is already IntToPtr or PtrToInt available.
             for (auto *PtIU : Op0->users()) {
               PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
-              if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, BI)){
+              if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
                 OpPtr2Int = PtI;
                 for (auto *ItPU : OpPtr2Int->users())  {
                   IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
                   if (ItP && ItP->getDestTy() == Op0 -> getType() &&
-                      DT->dominates(ItP, BI)) {
+                      DT->dominates(ItP, Cmp)) {
                     OpInt2Ptr = ItP;
                     break;
                   }
@@ -2154,12 +2154,12 @@ bool GVN::processInstruction(Instruction *I) {
 
     Value *TrueVal = ConstantInt::getTrue(TrueSucc->getContext());
     BasicBlockEdge TrueE(Parent, TrueSucc);
-    Changed |= propagateBranchEquality(BranchCond, TrueVal, TrueE, true, BI);
+    Changed |= propagateBranchEquality(BranchCond, TrueVal, TrueE, true);
 
 
     Value *FalseVal = ConstantInt::getFalse(FalseSucc->getContext());
     BasicBlockEdge FalseE(Parent, FalseSucc);
-    Changed |= propagateBranchEquality(BranchCond, FalseVal, FalseE, true, BI);
+    Changed |= propagateBranchEquality(BranchCond, FalseVal, FalseE, true);
 
 
     return Changed;
