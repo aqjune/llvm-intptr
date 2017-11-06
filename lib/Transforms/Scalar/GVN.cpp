@@ -1970,10 +1970,10 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
           if(isa<Constant>(Op1)) std::swap(Op0, Op1);
 
           // Do not propagate on propagated pointers
-          else if (!((isa<IntToPtrInst>(Op0) &&
-                        isa<PtrToIntInst>(cast<IntToPtrInst>(Op0)->getOperand(0))) ||
-                       (isa<IntToPtrInst>(Op1) &&
-                        isa<PtrToIntInst>(cast<IntToPtrInst>(Op1)->getOperand(0))))) {
+          if (!((isa<IntToPtrInst>(Op0) &&
+                 isa<PtrToIntInst>(cast<IntToPtrInst>(Op0)->getOperand(0))) ||
+                (isa<IntToPtrInst>(Op1) &&
+                 isa<PtrToIntInst>(cast<IntToPtrInst>(Op1)->getOperand(0))))) {
 
             // If either Op0 or Op1 is a null pointer constant, then do not
             // perform inttoptr(ptrtoint(p)) transformation. Instead, directly
@@ -1981,6 +1981,7 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
             if (isa<ConstantPointerNull>(Op0) ||
                 isa<ConstantPointerNull>(Op1)) {
               Worklist.push_back(std::make_pair(Op0, Op1));
+              continue;
             }
 
             Type *Ptr2IntTy =
