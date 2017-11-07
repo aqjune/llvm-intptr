@@ -33,6 +33,7 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/Loads.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
@@ -90,7 +91,11 @@ STATISTIC(NumGVNLoad,   "Number of loads deleted");
 STATISTIC(NumGVNPRE,    "Number of instructions PRE'd");
 STATISTIC(NumGVNBlocks, "Number of blocks merged");
 STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
-STATISTIC(NumGVNEqProp, "Number of equalities propagated");
+STATISTIC(NumGVNEqProp, "Number_of_equalities_propagated");
+STATISTIC(NumGVNPtrEqProp, "Number_of_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrLogicalDerefEqProp, "Number_of_logical_deref_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrLogicalSameEqProp, "Number_of_same_base_logical_pointer_equalities_propagated");
+STATISTIC(NumGVNNullPtrEqProp, "Number_of_null_pointer_equalities_propagated");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
 
 static cl::opt<bool> EnablePRE("enable-pre",
@@ -1711,6 +1716,7 @@ bool GVN::replaceOperandsWithConsts(Instruction *Instr) const {
 /// value starting from the end of Root.Start.
 bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
                             bool DominatesByEdge) {
+  Instruction *CxtI = isa<Instruction>(LHS) ? dyn_cast<Instruction>(LHS):nullptr;
   SmallVector<std::pair<Value*, Value*>, 4> Worklist;
   Worklist.push_back(std::make_pair(LHS, RHS));
   bool Changed = false;
@@ -1774,6 +1780,38 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
       Changed |= NumReplacements > 0;
       NumGVNEqProp += NumReplacements;
+      if (LHS->getType()->isPtrOrPtrVectorTy()) {
+        NumGVNPtrEqProp += NumReplacements;
+        if (isa<ConstantPointerNull>(LHS) || isa<ConstantPointerNull>(RHS))
+          NumGVNNullPtrEqProp += NumReplacements;
+        else {
+          SmallVector<Value *, 4> Op0Bases, Op1Bases;
+          const DataLayout &DL = Root.getStart()->getModule()->
+                                  getDataLayout();
+          auto isLogical = [](Value *V) {
+            return isa<AllocaInst>(V) ||
+                   isNoAliasCall(V) ||
+                   (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
+          };
+          GetUnderlyingObjects(LHS, Op0Bases, DL, nullptr, 6);
+          GetUnderlyingObjects(RHS, Op1Bases, DL, nullptr, 6);
+          bool isOp0Logical = true, isOp1Logical = true;
+          for (size_t i = 0; i < Op0Bases.size(); i++)
+            isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
+          for (size_t i = 0; i < Op1Bases.size(); i++)
+            isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
+
+          if (isOp0Logical && isOp1Logical) {
+            if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+                Op0Bases[0] == Op1Bases[0]) {
+              NumGVNPtrLogicalSameEqProp += NumReplacements;
+            } else if (isSafeToLoadUnconditionally(LHS, 0, DL, CxtI, DT) &&
+                       isSafeToLoadUnconditionally(RHS, 0, DL, CxtI, DT)) {
+              NumGVNPtrLogicalDerefEqProp += NumReplacements;
+            }
+          }
+        }
+      }
     }
 
     // Now try to deduce additional equalities from this one. For example, if
