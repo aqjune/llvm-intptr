@@ -1814,7 +1814,10 @@ unsigned llvm::replaceDominatedUsesWith(Value *From, Value *To,
                                         DominatorTree &DT,
                                         const BasicBlockEdge &Root) {
   auto Dominates = [&DT](const BasicBlockEdge &Root, const Use &U) {
-    return DT.dominates(Root, U);
+    if(isa<Instruction>(U.getUser()))
+      return DT.dominates(Root, U);
+    else
+      return false;
   };
   return ::replaceDominatedUsesWith(From, To, Root, Dominates);
 }
