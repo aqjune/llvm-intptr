@@ -1948,6 +1948,8 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
         // Never propagate between constant
         if (isa<Constant>(Op0) && isa<Constant>(Op1)) continue;
 
+        if( isa<Function>(Op0) || isa<Function>(Op1)) continue;
+
         // Pointer comparision, Transform LHS to int2ptr(ptr2int(LHS))
         // Transform happens when both hand sides are not constant
         if (Op0->getType()->isPtrOrPtrVectorTy()){
