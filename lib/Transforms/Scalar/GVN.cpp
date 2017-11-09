@@ -1968,7 +1968,8 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
           //      if (p == const) { use (inttoptr(ptrtoint(const))) use(const) }
           //
           //  Put the const to Op0
-          if(isa<Constant>(Op1)) std::swap(Op0, Op1);
+          bool IfSwaped = false;
+          if(isa<Constant>(Op1)) {IfSwaped = true; std::swap(Op0, Op1);}
 
           // Do not propagate on propagated pointers
           if (!((isa<IntToPtrInst>(Op0) &&
@@ -2021,8 +2022,10 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
                              Op0->getName() + ".int2ptr", Cmp);
 
             }
-            // Store the IntToPtrInst, for clean up
-            Cmp->setOperand(0, OpInt2Ptr);
+            if (IfSwaped)
+              Cmp->setOperand(1, OpInt2Ptr);
+            else 
+              Cmp->setOperand(0, OpInt2Ptr);
             Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
             Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
           }
