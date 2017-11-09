@@ -38,6 +38,7 @@
 #include "llvm/Analysis/OptimizationDiagnosticInfo.h"
 #include "llvm/Analysis/PHITransAddr.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallSite.h"
@@ -92,6 +93,7 @@ STATISTIC(NumGVNBlocks, "Number of blocks merged");
 STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
+STATISTIC(NumPropSameObj,   "Number if p,q are from the same object");
 
 static cl::opt<bool> EnablePRE("enable-pre",
                                cl::init(true), cl::Hidden);
@@ -1952,6 +1954,12 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
         // Pointer comparision, Transform LHS to int2ptr(ptr2int(LHS))
         // Transform happens when both hand sides are not constant
         if (Op0->getType()->isPtrOrPtrVectorTy()){
+          // Optimization 1. if p,q are from the same object, do not roundtrip
+          if (llvm::GetUnderlyingObject(Op0, DL) == llvm::GetUnderlyingObject(Op1, DL)) {
+            Worklist.push_back(std::make_pair(Op0, Op1));
+            NumPropSameObj++;
+            continue;
+          }
 
           // Prepare for the transformation
           //   if (p == const) { use (p) use (const) } ->
