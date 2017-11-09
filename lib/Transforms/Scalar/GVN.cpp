@@ -39,6 +39,7 @@
 #include "llvm/Analysis/PHITransAddr.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Analysis/Loads.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallSite.h"
@@ -93,7 +94,9 @@ STATISTIC(NumGVNBlocks, "Number of blocks merged");
 STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
-STATISTIC(NumPropSameObj,   "Number if p,q are from the same object");
+STATISTIC(NumPropLogicSameObj,   "Number if p,q are from the same object");
+STATISTIC(NumPropLogicDereferenceable,   "Number if p,q are logic dereferenceable");
+STATISTIC(NumPropPhysical,   "Number if p or q is a physical pointer");
 
 static cl::opt<bool> EnablePRE("enable-pre",
                                cl::init(true), cl::Hidden);
@@ -1954,11 +1957,39 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
         // Pointer comparision, Transform LHS to int2ptr(ptr2int(LHS))
         // Transform happens when both hand sides are not constant
         if (Op0->getType()->isPtrOrPtrVectorTy()){
-          // Optimization 1. if p,q are from the same object, do not roundtrip
-          if (llvm::GetUnderlyingObject(Op0, DL) == llvm::GetUnderlyingObject(Op1, DL)) {
-            Worklist.push_back(std::make_pair(Op0, Op1));
-            NumPropSameObj++;
-            continue;
+
+          // If p,q are logically from same object or locgically an dereferenceable,
+          // do not perform inttoptr/ptrtoint roundtrip insertion.
+          SmallVector<Value *, 4> Op0Bases, Op1Bases;
+          Instruction *CxtI = isa<Instruction>(Op0) ? dyn_cast<Instruction>(Op0):nullptr;
+          auto isLogical = [](Value *V) {
+            return isa<AllocaInst>(V) ||
+            isNoAliasCall(V) ||
+            (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
+          };
+          GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
+          GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
+          bool isOp0Logical = true, isOp1Logical = true;
+          for (size_t i = 0; i < Op0Bases.size(); i++)
+            isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
+          for (size_t i = 0; i < Op1Bases.size(); i++)
+            isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
+
+          if (isOp0Logical && isOp1Logical) {
+            // p, q are from same object
+            if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+                Op0Bases[0] == Op1Bases[0]) {
+              Worklist.push_back(std::make_pair(Op0, Op1));
+              NumPropLogicSameObj++;
+              continue;
+            }
+            // p, q are logical an dereferenceable
+            else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
+                     isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
+              Worklist.push_back(std::make_pair(Op0, Op1));
+              NumPropLogicDereferenceable++;
+              continue;
+            }
           }
 
           // Prepare for the transformation
@@ -1974,6 +2005,13 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
                  isa<PtrToIntInst>(cast<IntToPtrInst>(Op0)->getOperand(0))) ||
                 (isa<IntToPtrInst>(Op1) &&
                  isa<PtrToIntInst>(cast<IntToPtrInst>(Op1)->getOperand(0))))) {
+
+            // Do not propagate if p or q is a inttoptr (physical pointer)
+            if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1)) {
+              Worklist.push_back(std::make_pair(Op0, Op1));
+              NumPropPhysical++;
+              continue;
+            }
 
             // If either Op0 or Op1 is a null pointer constant, then do not
             // perform inttoptr(ptrtoint(p)) transformation. Instead, directly
