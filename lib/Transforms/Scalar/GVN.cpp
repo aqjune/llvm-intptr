@@ -2017,7 +2017,8 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
             else 
               Cmp->setOperand(0, OpInt2Ptr);
             Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
-            Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
+            if (!isa<Constant>(Op0))
+              Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
           }
         }
         else Worklist.push_back(std::make_pair(Op0, Op1));
