@@ -87,12 +87,12 @@ using namespace PatternMatch;
 #define DEBUG_TYPE "gvn"
 
 STATISTIC(NumGVNInstr,  "Number of instructions deleted");
-STATISTIC(NumPtrEqProp, "Number of pointer equality propagation");
 STATISTIC(NumGVNLoad,   "Number of loads deleted");
 STATISTIC(NumGVNPRE,    "Number of instructions PRE'd");
 STATISTIC(NumGVNBlocks, "Number of blocks merged");
 STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
+STATISTIC(NumPropPtrRoundTrip, "Number of equalities propagated with inttoptr/ptrtoint roundtrip");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
 STATISTIC(NumPropLogicSameObj,   "Number if p,q are from the same object");
 STATISTIC(NumPropLogicDereferenceable,   "Number if p,q are logic dereferenceable");
@@ -1831,6 +1831,8 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
 bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
                                   bool DominatesByEdge) {
+  const DataLayout &DL = Root.getStart()->getModule()->getDataLayout();
+  Instruction *CxtI = dyn_cast<Instruction>(LHS);
   SmallVector<std::pair<Value*, Value*>, 4> Worklist;
   Worklist.push_back(std::make_pair(LHS, RHS));
   bool Changed = false;
@@ -1898,15 +1900,56 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
     // never do anything if LHS has only one use.
 
     if (!LHS->hasOneUse()) {
-      // Update the NumPtrEqProp counter.
-      if (isa<IntToPtrInst>(RHS) &&
-          isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0))) {
-        ++ NumPtrEqProp ;
-      }
       unsigned NumReplacements =
           DominatesByEdge
               ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
               : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
+
+      // Update the NumPropPtrRoundTrip counter.
+      if (isa<IntToPtrInst>(RHS) &&
+          isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0))) {
+        NumPropPtrRoundTrip += NumReplacements ;
+      }
+
+      // Strip the RHS, if it is roundtrip propagated
+      Value *Op0, *Op1;
+      Op0 = LHS;
+      if(isa<IntToPtrInst>(RHS) &&
+         isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0)))
+        Op1 = (cast<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0)))->getOperand(0);
+      else
+        Op1 = RHS;
+
+      // Update the NumPropPhysical counter
+      if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1))
+        NumPropPhysical += NumReplacements;
+
+      SmallVector<Value *, 4> Op0Bases, Op1Bases;
+      auto isLogical = [](Value *V) {
+        return isa<AllocaInst>(V) ||
+        isNoAliasCall(V) ||
+        (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
+      };
+      GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
+      GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
+      bool isOp0Logical = true, isOp1Logical = true;
+      for (size_t i = 0; i < Op0Bases.size(); i++)
+        isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
+      for (size_t i = 0; i < Op1Bases.size(); i++)
+        isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
+
+      if (isOp0Logical && isOp1Logical) {
+        // p, q are from same object
+        if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+            Op0Bases[0] == Op1Bases[0]) {
+          NumPropLogicSameObj += NumReplacements;
+        }
+        // p, q are logical an dereferenceable
+        else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
+                 isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
+          NumPropLogicDereferenceable+= NumReplacements;
+        }
+      }
 
       Changed |= NumReplacements > 0;
       NumGVNEqProp += NumReplacements;
@@ -1942,7 +1985,6 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
     // "(A >= B)" == "true", replace all instances of "A < B" with "false".
     if (CmpInst *Cmp = dyn_cast<CmpInst>(LHS)) {
       Value *Op0 = Cmp->getOperand(0), *Op1 = Cmp->getOperand(1);
-      const DataLayout &DL = Cmp->getModule()->getDataLayout();
 
       // If "A == B" is known true, or "A != B" is known false, then replace
       // A with B everywhere in the scope.
@@ -1961,7 +2003,7 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
           // If p,q are logically from same object or locgically an dereferenceable,
           // do not perform inttoptr/ptrtoint roundtrip insertion.
           SmallVector<Value *, 4> Op0Bases, Op1Bases;
-          Instruction *CxtI = isa<Instruction>(Op0) ? dyn_cast<Instruction>(Op0):nullptr;
+
           auto isLogical = [](Value *V) {
             return isa<AllocaInst>(V) ||
             isNoAliasCall(V) ||
@@ -1980,14 +2022,12 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
             if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
                 Op0Bases[0] == Op1Bases[0]) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              NumPropLogicSameObj++;
               continue;
             }
             // p, q are logical an dereferenceable
             else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
                      isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              NumPropLogicDereferenceable++;
               continue;
             }
           }
@@ -2009,7 +2049,6 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
             // Do not propagate if p or q is a inttoptr (physical pointer)
             if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1)) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              NumPropPhysical++;
               continue;
             }
 
