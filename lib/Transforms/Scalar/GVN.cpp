@@ -1836,7 +1836,6 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
 bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
                                   bool DominatesByEdge) {
-  SetVector<IntToPtrInst *> IntToPtrInstCreated;
   SmallVector<std::pair<Value*, Value*>, 4> Worklist;
   Worklist.push_back(std::make_pair(LHS, RHS));
   bool Changed = false;
@@ -2023,7 +2022,6 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
 
             }
             // Store the IntToPtrInst, for clean up
-            IntToPtrInstCreated.insert(OpInt2Ptr);
             Cmp->setOperand(0, OpInt2Ptr);
             Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
             Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
@@ -2081,25 +2079,6 @@ bool GVN::propagateBranchEquality(Value *LHS, Value *RHS, const BasicBlockEdge &
     }
   }
 
-  //
-  // Dead inttoptr(ptrtoint) must be eliminated, to prevent the infinite loop
-  // caused by interaction with instsimplify in processInstruction.
-  //
-  for (SetVector<IntToPtrInst *>::iterator I =  IntToPtrInstCreated.begin();
-       I !=  IntToPtrInstCreated.end(); I++) {
-    if (isInstructionTriviallyDead(*I, TLI)) {
-      PtrToIntInst *PI = dyn_cast<PtrToIntInst>((*I)->getOperand(0));
-
-      if (MD) MD->removeInstruction(*I);
-      (*I)-> eraseFromParent();
-
-      if (PI && isInstructionTriviallyDead(PI, TLI)) {
-        if (MD) MD->removeInstruction(PI);
-        PI-> eraseFromParent();
-      }
-    }
-  }
-  IntToPtrInstCreated.clear();
   return Changed;
 }
 
