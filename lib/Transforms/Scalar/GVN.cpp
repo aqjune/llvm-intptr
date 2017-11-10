@@ -1387,7 +1387,7 @@ bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
 
     // This property is only true in dominated successors, propagateEquality
     // will check dominance for us.
-    Changed |= propagateEquality(V, True, Edge, false);
+    Changed |= propagateEquality(V, True, Edge, false, false);
   }
 
   // We can replace assume value with true, which covers cases like this:
@@ -1683,7 +1683,7 @@ bool GVN::replaceOperandsWithConsts(Instruction *Instr) const {
 /// If DominatesByEdge is false, then it means that we will propagate the RHS
 /// value starting from the end of Root.Start.
 bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
-                                  bool DominatesByEdge) {
+                            bool DominatesByEdge, bool useRoundCastOnPtrEquality) {
   const DataLayout &DL = Root.getStart()->getModule()->getDataLayout();
   Instruction *CxtI = dyn_cast<Instruction>(LHS);
   SmallVector<std::pair<Value*, Value*>, 4> Worklist;
@@ -1713,10 +1713,12 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
     uint32_t LVN = VN.lookupOrAdd(LHS);
 
-    // Prefer values like int2ptr(ptr2int(p)) on the right-hand side.
-    if (isa<IntToPtrInst>(LHS) &&
-        isa<PtrToIntInst>(cast<IntToPtrInst>(LHS)->getOperand(0))) {
-      std::swap(LHS, RHS);
+    if (useRoundCastOnPtrEquality) {
+      // Prefer values like int2ptr(ptr2int(p)) on the right-hand side.
+      if (isa<IntToPtrInst>(LHS) &&
+          isa<PtrToIntInst>(cast<IntToPtrInst>(LHS)->getOperand(0))) {
+        std::swap(LHS, RHS);
+      }
     } else {
 
       // If there is no obvious reason to prefer the left-hand side over the
@@ -1758,54 +1760,58 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
               ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
               : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
 
-      // Update the NumPropPtrRoundTrip counter.
-      if (isa<IntToPtrInst>(RHS) &&
-          isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0))) {
-        NumPropPtrRoundTrip += NumReplacements ;
-      }
+      // Updated Roundtrip Cast counters
+      if (useRoundCastOnPtrEquality) {
 
-      // Strip the RHS, if it is roundtrip propagated
-      Value *Op0, *Op1;
-      Op0 = LHS;
-      if(isa<IntToPtrInst>(RHS) &&
-         isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0)))
-        Op1 = (cast<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0)))->getOperand(0);
-      else
-        Op1 = RHS;
-
-      // Update the NumPropPhysical counter
-      if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1))
-        NumPropPhysical += NumReplacements;
-
-      SmallVector<Value *, 4> Op0Bases, Op1Bases;
-      auto isLogical = [](Value *V) {
-        return isa<AllocaInst>(V) ||
-        isNoAliasCall(V) ||
-        (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
-      };
-      GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
-      GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
-      bool isOp0Logical = true, isOp1Logical = true;
-      for (size_t i = 0; i < Op0Bases.size(); i++)
-        isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
-      for (size_t i = 0; i < Op1Bases.size(); i++)
-        isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
-
-      if (isOp0Logical && isOp1Logical) {
-        // p, q are from same object
-        if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
-            Op0Bases[0] == Op1Bases[0]) {
-          NumPropLogicSameObj += NumReplacements;
+        // Update the NumPropPtrRoundTrip counter.
+        if (isa<IntToPtrInst>(RHS) &&
+            isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0))) {
+          NumPropPtrRoundTrip += NumReplacements ;
         }
-        // p, q are logical an dereferenceable
-        else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
-                 isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
-          NumPropLogicDereferenceable+= NumReplacements;
-        }
-      }
 
-      Changed |= NumReplacements > 0;
-      NumGVNEqProp += NumReplacements;
+        // Strip the RHS, if it is roundtrip propagated
+        Value *Op0, *Op1;
+        Op0 = LHS;
+        if(isa<IntToPtrInst>(RHS) &&
+           isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0)))
+          Op1 = (cast<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0)))->getOperand(0);
+        else
+          Op1 = RHS;
+
+        // Update the NumPropPhysical counter
+        if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1))
+          NumPropPhysical += NumReplacements;
+
+        SmallVector<Value *, 4> Op0Bases, Op1Bases;
+        auto isLogical = [](Value *V) {
+          return isa<AllocaInst>(V) ||
+          isNoAliasCall(V) ||
+          (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
+        };
+        GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
+        GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
+        bool isOp0Logical = true, isOp1Logical = true;
+        for (size_t i = 0; i < Op0Bases.size(); i++)
+          isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
+        for (size_t i = 0; i < Op1Bases.size(); i++)
+          isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
+
+        if (isOp0Logical && isOp1Logical) {
+          // p, q are from same object
+          if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+              Op0Bases[0] == Op1Bases[0]) {
+            NumPropLogicSameObj += NumReplacements;
+          }
+          // p, q are logical an dereferenceable
+          else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
+                   isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
+            NumPropLogicDereferenceable+= NumReplacements;
+          }
+        }
+
+        Changed |= NumReplacements > 0;
+        NumGVNEqProp += NumReplacements;
+      }
     }
 
     // Now try to deduce additional equalities from this one. For example, if
@@ -1844,14 +1850,14 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
       if (((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
            (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE))) {
 
-        // Never propagate between constant
-        if (isa<Constant>(Op0) && isa<Constant>(Op1)) continue;
-
-        if( isa<Function>(Op0) || isa<Function>(Op1)) continue;
-
         // Pointer comparision, Transform LHS to int2ptr(ptr2int(LHS))
         // Transform happens when both hand sides are not constant
-        if (Op0->getType()->isPtrOrPtrVectorTy()){
+        if (useRoundCastOnPtrEquality && Op0->getType()->isPtrOrPtrVectorTy() &&
+            !(isa<Constant>(Op0) && isa<Constant>(Op1))) {
+
+          bool IfPerformRoundTrip = true;
+
+          if( isa<Function>(Op0) || isa<Function>(Op1)) IfPerformRoundTrip = false;
 
           // If p,q are logically from same object or locgically an dereferenceable,
           // do not perform inttoptr/ptrtoint roundtrip insertion.
@@ -1875,13 +1881,13 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
             if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
                 Op0Bases[0] == Op1Bases[0]) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              continue;
+              IfPerformRoundTrip = false;
             }
             // p, q are logical an dereferenceable
             else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
                      isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              continue;
+              IfPerformRoundTrip = false;
             }
           }
 
@@ -1902,7 +1908,7 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
             // Do not propagate if p or q is a inttoptr (physical pointer)
             if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1)) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              continue;
+              IfPerformRoundTrip = false;
             }
 
             // If either Op0 or Op1 is a null pointer constant, then do not
@@ -1911,52 +1917,52 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
             if (isa<ConstantPointerNull>(Op0) ||
                 isa<ConstantPointerNull>(Op1)) {
               Worklist.push_back(std::make_pair(Op0, Op1));
-              continue;
+              IfPerformRoundTrip = false;
             }
 
-            Type *Ptr2IntTy =
-              Type::getIntNTy (Op0->getContext(),
-                               DL.getPointerSizeInBits
-                               (Op0->getType()->getPointerAddressSpace()));
-            PtrToIntInst *OpPtr2Int = nullptr;
-            IntToPtrInst *OpInt2Ptr = nullptr;
+            if (IfPerformRoundTrip) {
+              Type *Ptr2IntTy =
+                Type::getIntNTy (Op0->getContext(),
+                                 DL.getPointerSizeInBits
+                                 (Op0->getType()->getPointerAddressSpace()));
+              PtrToIntInst *OpPtr2Int = nullptr;
+              IntToPtrInst *OpInt2Ptr = nullptr;
 
-            // Find if there is already IntToPtr or PtrToInt available.
-            for (auto *PtIU : Op0->users()) {
-              PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
-              if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
-                OpPtr2Int = PtI;
-                for (auto *ItPU : OpPtr2Int->users())  {
-                  IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
-                  if (ItP && ItP->getDestTy() == Op0 -> getType() &&
-                      DT->dominates(ItP, Cmp)) {
-                    OpInt2Ptr = ItP;
-                    break;
+              // Find if there is already IntToPtr or PtrToInt available.
+              for (auto *PtIU : Op0->users()) {
+                PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
+                if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
+                  OpPtr2Int = PtI;
+                  for (auto *ItPU : OpPtr2Int->users())  {
+                    IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
+                    if (ItP && ItP->getDestTy() == Op0 -> getType() &&
+                        DT->dominates(ItP, Cmp)) {
+                      OpInt2Ptr = ItP;
+                      break;
+                    }
                   }
+                  break;
                 }
-                break;
               }
-            }
 
-            if (!OpPtr2Int) {
-              OpPtr2Int = new
-                PtrToIntInst(Op0, Ptr2IntTy,
-                             Op0->getName() + ".ptr2int", Cmp);
-
+              if (!OpPtr2Int) {
+                OpPtr2Int = new
+                  PtrToIntInst(Op0, Ptr2IntTy,
+                               Op0->getName() + ".ptr2int", Cmp);
+              }
+              if (!OpInt2Ptr) {
+                OpInt2Ptr = new
+                  IntToPtrInst(OpPtr2Int, Op0->getType(),
+                               Op0->getName() + ".int2ptr", Cmp);
+              }
+              if (IfSwaped)
+                Cmp->setOperand(1, OpInt2Ptr);
+              else
+                Cmp->setOperand(0, OpInt2Ptr);
+              Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
+              if (!isa<Constant>(Op0))
+                Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
             }
-            if (!OpInt2Ptr) {
-              OpInt2Ptr = new
-                IntToPtrInst(OpPtr2Int, Op0->getType(),
-                             Op0->getName() + ".int2ptr", Cmp);
-
-            }
-            if (IfSwaped)
-              Cmp->setOperand(1, OpInt2Ptr);
-            else 
-              Cmp->setOperand(0, OpInt2Ptr);
-            Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
-            if (!isa<Constant>(Op0))
-              Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
           }
         }
         else Worklist.push_back(std::make_pair(Op0, Op1));
@@ -2082,12 +2088,12 @@ bool GVN::processInstruction(Instruction *I) {
 
     Value *TrueVal = ConstantInt::getTrue(TrueSucc->getContext());
     BasicBlockEdge TrueE(Parent, TrueSucc);
-    Changed |= propagateEquality(BranchCond, TrueVal, TrueE, true);
+    Changed |= propagateEquality(BranchCond, TrueVal, TrueE, true, true);
 
 
     Value *FalseVal = ConstantInt::getFalse(FalseSucc->getContext());
     BasicBlockEdge FalseE(Parent, FalseSucc);
-    Changed |= propagateEquality(BranchCond, FalseVal, FalseE, true);
+    Changed |= propagateEquality(BranchCond, FalseVal, FalseE, true, true);
 
 
     return Changed;
@@ -2110,7 +2116,7 @@ bool GVN::processInstruction(Instruction *I) {
       // If there is only a single edge, propagate the case value into it.
       if (SwitchEdges.lookup(Dst) == 1) {
         BasicBlockEdge E(Parent, Dst);
-        Changed |= propagateEquality(SwitchCond, i->getCaseValue(), E, true);
+        Changed |= propagateEquality(SwitchCond, i->getCaseValue(), E, true, true);
       }
     }
     return Changed;
