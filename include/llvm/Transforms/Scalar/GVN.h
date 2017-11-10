@@ -273,7 +273,7 @@ private:
   BasicBlock *splitCriticalEdges(BasicBlock *Pred, BasicBlock *Succ);
   bool replaceOperandsWithConsts(Instruction *I) const;
   bool propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
-                         bool DominatesByEdge);
+                         bool DominatesByEdge, bool useRoundCastOnPtrEquality);
   bool processFoldableCondBr(BranchInst *BI);
   void addDeadBlock(BasicBlock *BB);
   void assignValNumForDeadCode();
