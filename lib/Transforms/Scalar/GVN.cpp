@@ -1787,7 +1787,9 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
         for (size_t i = 0; i < Op1Bases.size(); i++)
           isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
 
-        if (isOp0Logical && isOp1Logical) {
+        // If both is logical, and do not count if
+        // LHS = p , RHS = intptr(ptrtoint (p))
+        if (isOp0Logical && isOp1Logical && (Op0 != Op1)) {
           // p, q are from same object
           if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
               Op0Bases[0] == Op1Bases[0]) {
