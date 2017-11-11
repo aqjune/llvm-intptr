@@ -1746,20 +1746,7 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
     // never do anything if LHS has only one use.
 
     if (!LHS->hasOneUse()) {
-      unsigned NumReplacements =
-          DominatesByEdge
-              ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
-              : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
-
-      // Updated Roundtrip Cast counters
       if (useRoundCastOnPtrEquality) {
-
-        // Update the NumPropPtrRoundTrip counter.
-        if (isa<IntToPtrInst>(RHS) &&
-            isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0))) {
-          NumPropPtrRoundTrip += NumReplacements ;
-        }
-
         // Strip the RHS, if it is roundtrip propagated
         Value *Op0, *Op1;
         Op0 = LHS;
@@ -1770,8 +1757,6 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
           Op1 = RHS;
 
         // Update the NumPropPhysical counter
-        if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1))
-          NumPropPhysical += NumReplacements;
 
         SmallVector<Value *, 4> Op0Bases, Op1Bases;
         auto isLogical = [](Value *V) {
@@ -1779,6 +1764,10 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
           isNoAliasCall(V) ||
           (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
         };
+        auto isPhysical = [](Value *V) {
+          return isa<IntToPtrInst>(V);
+        };
+
         GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
         GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
         bool isOp0Logical = true, isOp1Logical = true;
@@ -1786,6 +1775,26 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
           isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
         for (size_t i = 0; i < Op1Bases.size(); i++)
           isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
+
+        unsigned NumReplacements;
+        if (!(isPhysical(Op0) && isOp1Logical))
+          NumReplacements =
+            DominatesByEdge
+            ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
+            : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
+        else NumReplacements = 0;
+
+        // Updated Roundtrip Cast counters
+
+        if (isPhysical(Op0) || isPhysical(Op1))
+          NumPropPhysical += NumReplacements;
+
+        // Update the NumPropPtrRoundTrip counter.
+        if (isa<IntToPtrInst>(RHS) &&
+            isa<PtrToIntInst>(cast<IntToPtrInst>(RHS)->getOperand(0))) {
+          NumPropPtrRoundTrip += NumReplacements ;
+        }
+
 
         // If both is logical, and do not count if
         // LHS = p , RHS = intptr(ptrtoint (p))
@@ -1802,6 +1811,13 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
           }
         }
 
+        Changed |= NumReplacements > 0;
+        NumGVNEqProp += NumReplacements;
+      } else {
+        unsigned NumReplacements =
+          DominatesByEdge
+          ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
+          : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
         Changed |= NumReplacements > 0;
         NumGVNEqProp += NumReplacements;
       }
