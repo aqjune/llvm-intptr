@@ -1776,7 +1776,8 @@ void llvm::combineMetadataForCSE(Instruction *K, const Instruction *J) {
 template <typename RootType, typename DominatesFn>
 static unsigned replaceDominatedUsesWith(Value *From, Value *To,
                                          const RootType &Root,
-                                         const DominatesFn &Dominates) {
+                                         const DominatesFn &Dominates,
+                                         const std::function<void(Use*)> callbackFunc) {
   assert(From->getType() == To->getType());
 
   unsigned Count = 0;
@@ -1785,6 +1786,8 @@ static unsigned replaceDominatedUsesWith(Value *From, Value *To,
     Use &U = *UI++;
     if (!Dominates(Root, U))
       continue;
+    if (callbackFunc)
+      callbackFunc(&U);
     U.set(To);
     DEBUG(dbgs() << "Replace dominated use of '" << From->getName() << "' as "
                  << *To << " in " << *U << "\n");
@@ -1812,21 +1815,23 @@ unsigned llvm::replaceNonLocalUsesWith(Instruction *From, Value *To) {
 
 unsigned llvm::replaceDominatedUsesWith(Value *From, Value *To,
                                         DominatorTree &DT,
-                                        const BasicBlockEdge &Root) {
+                                        const BasicBlockEdge &Root,
+                                        const std::function<void(Use*)> callbackFunc) {
   auto Dominates = [&DT](const BasicBlockEdge &Root, const Use &U) {
     return DT.dominates(Root, U);
   };
-  return ::replaceDominatedUsesWith(From, To, Root, Dominates);
+  return ::replaceDominatedUsesWith(From, To, Root, Dominates, callbackFunc);
 }
 
 unsigned llvm::replaceDominatedUsesWith(Value *From, Value *To,
                                         DominatorTree &DT,
-                                        const BasicBlock *BB) {
+                                        const BasicBlock *BB,
+                                        const std::function<void(Use*)> callbackFunc) {
   auto ProperlyDominates = [&DT](const BasicBlock *BB, const Use &U) {
     auto *I = cast<Instruction>(U.getUser())->getParent();
     return DT.properlyDominates(BB, I);
   };
-  return ::replaceDominatedUsesWith(From, To, BB, ProperlyDominates);
+  return ::replaceDominatedUsesWith(From, To, BB, ProperlyDominates, callbackFunc);
 }
 
 bool llvm::callsGCLeafFunction(ImmutableCallSite CS,

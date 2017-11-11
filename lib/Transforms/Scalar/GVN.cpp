@@ -26,6 +26,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -38,6 +39,7 @@
 #include "llvm/Analysis/OptimizationDiagnosticInfo.h"
 #include "llvm/Analysis/PHITransAddr.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallSite.h"
@@ -89,7 +91,21 @@ STATISTIC(NumGVNLoad,   "Number of loads deleted");
 STATISTIC(NumGVNPRE,    "Number of instructions PRE'd");
 STATISTIC(NumGVNBlocks, "Number of blocks merged");
 STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
-STATISTIC(NumGVNEqProp, "Number of equalities propagated");
+STATISTIC(NumGVNEqProp, "Number_of_equalities_propagated");
+STATISTIC(NumGVNPtrEqProp, "Number_of_pointer_equalities_propagated");
+STATISTIC(NumGVNNullPtrEqProp, "Number_of_null_pointer_equalities_propagated");
+STATISTIC(NumGVNWrongPtrEqProp, "Number_of_wrong_pointer_equalities_propagated");
+STATISTIC(NumGVNCorrectPtrEqProp, "Number_of_correct_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeLoad, "Number_of_load_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeStore, "Number_of_store_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeGEP, "Number_of_gep_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeSelect, "Number_of_select_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeICmp, "Number_of_icmp_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypePtrToInt, "Number_of_ptrtoint_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypePSub, "Number_of_psub_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeCall, "Number_of_call_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeOthers, "Number_of_other_uses_pointer_equalities_propagated");
+STATISTIC(NumGVNPtrEqPropUseTypeBCorPHI, "Number_of_bitcast_phi_uses_pointer_equalities_propagated");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
 
 static cl::opt<bool> EnablePRE("enable-pre",
@@ -1671,6 +1687,127 @@ bool GVN::replaceOperandsWithConsts(Instruction *Instr) const {
   return Changed;
 }
 
+static bool isNotSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
+                                            const DataLayout &DL) {
+  SmallVector<Value *, 4> Op0Bases, Op1Bases;
+  GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 12);
+  GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 12);
+  auto cannotBeReplaced = [](Value *V, Value *U) {
+    auto isUnknownPtrTy = [](Value *V) {
+      if (isa<LoadInst>(V) || isa<Argument>(V))
+        return true;
+      if (auto CS = ImmutableCallSite(V))
+        return !CS.hasRetAttr(Attribute::NoAlias);
+      return false;
+    };
+    if (isUnknownPtrTy(V) && isUnknownPtrTy(U) &&
+        V != U)
+      return true;
+    return false;
+  };
+  for (unsigned i = 0; i < Op0Bases.size(); i++) {
+    for (unsigned j = 0; j < Op1Bases.size(); j++) {
+      if (cannotBeReplaced(Op0Bases[i], Op1Bases[j]))
+        return true;
+    }
+  }
+  return false;
+}
+
+/// Returns true if replacing Op0 with Op1 is safe, given Op0 == Op1.
+static bool isSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
+                                         const DataLayout &DL) {
+  // If Op0 is null pointer, it is safe to replace OP0 with Op1.
+  if (isa<ConstantPointerNull>(Op1)) return true;
+
+  // p = gep inbounds p0, n;
+  // q = gep inbounds p0, m;
+  // if (p == q) { /* it is safe to use q instead of p */ }
+  GEPOperator *GEP0 = dyn_cast<GEPOperator>(Op0);
+  GEPOperator *GEP1 = dyn_cast<GEPOperator>(Op1);
+  if (GEP0 && GEP1 && GEP0->isInBounds() && GEP1->isInBounds() &&
+      GEP0->getPointerOperand() == GEP1->getPointerOperand())
+    return true;
+
+	// alc = alloca
+	// p = gep alc, ..
+  // q = gep alc, ..
+  SmallVector<Value *, 4> Op0Bases, Op1Bases;
+	GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 12);
+	GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 12);
+  auto isLogical = [](Value *V) {
+    return isa<AllocaInst>(V) ||
+           isNoAliasCall(V) ||
+           (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
+  };
+  if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+      Op0Bases[0] == Op1Bases[0] && isLogical(Op0Bases[0]))
+    return true;
+
+  // p = gep inbounds (gep inbounds ... (gep inbounds p0, c1), c2), cn
+  //     c1, c2, .. , cn are non-negative constants
+  // q = gep inbounds (gep inbounds ... (gep inbounds p0, c1'), c2'), cn'
+  //     c1', c2', .., cn' are non-negative constants
+  SmallVector<Value *, 4> Op0Bases2, Op1Bases2;
+	GetUnderlyingObjects(Op0, Op0Bases2, DL, nullptr, 12, true);
+	GetUnderlyingObjects(Op1, Op1Bases2, DL, nullptr, 12, true);
+  if (Op0Bases2.size() == 1 && Op1Bases2.size() == 1 &&
+      Op0Bases2[0] == Op1Bases2[0])
+    return true;
+
+/*
+  llvm::outs() << "It's not safe to propagate ptr equality.\n";
+  llvm::outs() << "   " << *Op0 << "\n";
+  llvm::outs() << "     base: (size " << Op0Bases.size() << ")\n";
+  for (size_t i = 0; i < Op0Bases.size(); i++)
+    llvm::outs() << "         " << *Op0Bases[i] << "\n";
+  llvm::outs() << "   " << *Op1 << "\n";
+  llvm::outs() << "      base: (size " << Op1Bases.size() << ")\n";
+  for (size_t i = 0; i < Op1Bases.size(); i++)
+    llvm::outs() << "         " << *Op1Bases[i] << "\n";
+*/
+  return false;
+}
+
+static void _addCountOfPtrReplacement(User *U, SmallSet<const Value *, 32> &Visited) {
+  if (Visited.count(U)) return;
+  Visited.insert(U);
+  if (isa<BitCastInst>(U) || isa<PHINode>(U)) {
+    NumGVNPtrEqPropUseTypeBCorPHI++;
+    for (Value::use_iterator UI = U->use_begin(), UE = U->use_end();
+         UI != UE;) {
+      Use &U2 = *UI++;
+      _addCountOfPtrReplacement(U2.getUser(), Visited);
+    }
+    return;
+  }
+  if (isa<LoadInst>(U))
+    NumGVNPtrEqPropUseTypeLoad++;
+  else if (isa<StoreInst>(U))
+    NumGVNPtrEqPropUseTypeStore++;
+  else if (isa<GetElementPtrInst>(U))
+    NumGVNPtrEqPropUseTypeGEP++;
+  else if (isa<SelectInst>(U))
+    NumGVNPtrEqPropUseTypeSelect++;
+  else if (isa<ICmpInst>(U))
+    NumGVNPtrEqPropUseTypeICmp++;
+  else if (isa<PtrToIntInst>(U))
+    NumGVNPtrEqPropUseTypePtrToInt++;
+  else if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(U)) {
+    if (II->getIntrinsicID() == Intrinsic::psub)
+      NumGVNPtrEqPropUseTypePSub++;
+    else
+      NumGVNPtrEqPropUseTypeCall++;
+  } else if (auto CI = ImmutableCallSite(U)) 
+    NumGVNPtrEqPropUseTypeCall++;
+  else
+    NumGVNPtrEqPropUseTypeOthers++;
+}
+static void addCountOfPtrReplacement(Use *U) {
+  SmallSet<const Value *, 32> Visited;
+  _addCountOfPtrReplacement(U->getUser(), Visited);
+}
+
 /// The given values are known to be equal in every block
 /// dominated by 'Root'.  Exploit this, for example by replacing 'LHS' with
 /// 'RHS' everywhere in the scope.  Returns whether a change was made.
@@ -1684,6 +1821,7 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
   // For speed, compute a conservative fast approximation to
   // DT->dominates(Root, Root.getEnd());
   const bool RootDominatesEnd = isOnlyReachableViaThisEdge(Root, DT);
+  const DataLayout &DL = Root.getStart()->getModule()->getDataLayout();
 
   while (!Worklist.empty()) {
     std::pair<Value*, Value*> Item = Worklist.pop_back_val();
@@ -1734,13 +1872,31 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
     // LHS always has at least one use that is not dominated by Root, this will
     // never do anything if LHS has only one use.
     if (!LHS->hasOneUse()) {
+      std::function<void(Use*)> callbackFunc = [](Use* U){};
+      if (LHS->getType()->isPtrOrPtrVectorTy())
+        callbackFunc = addCountOfPtrReplacement;
       unsigned NumReplacements =
           DominatesByEdge
-              ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
-              : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
+              ? replaceDominatedUsesWith(LHS, RHS, *DT, Root, callbackFunc)
+              : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart(),
+                                         callbackFunc);
 
       Changed |= NumReplacements > 0;
       NumGVNEqProp += NumReplacements;
+      if (LHS->getType()->isPtrOrPtrVectorTy()) {
+        NumGVNPtrEqProp += NumReplacements;
+        if (isa<ConstantPointerNull>(RHS))
+          NumGVNNullPtrEqProp += NumReplacements;
+        else {
+          bool isUnsafe = isNotSafeToPropagatePtrEquality(LHS, RHS, DL);
+          bool isSafe = isSafeToPropagatePtrEquality(LHS, RHS, DL);
+          assert (!(isSafe && isUnsafe));
+          if (isUnsafe)
+            NumGVNWrongPtrEqProp += NumReplacements;
+          else if (isSafe)
+            NumGVNCorrectPtrEqProp += NumReplacements;
+        }
+      }
     }
 
     // Now try to deduce additional equalities from this one. For example, if
@@ -1776,10 +1932,12 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
       // If "A == B" is known true, or "A != B" is known false, then replace
       // A with B everywhere in the scope.
-      if (!Op0->getType()->isPtrOrPtrVectorTy() &&
-          ((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
-          (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE)))
-        Worklist.push_back(std::make_pair(Op0, Op1));
+      if ((isKnownTrue && Cmp->getPredicate() == CmpInst::ICMP_EQ) ||
+          (isKnownFalse && Cmp->getPredicate() == CmpInst::ICMP_NE)) {
+        //if (!Op0->getType()->isPtrOrPtrVectorTy() ||
+        //    isSafeToPropagatePtrEquality(Op0, Op1, DL))
+          Worklist.push_back(std::make_pair(Op0, Op1));
+      }
 
       // Handle the floating point versions of equality comparisons too.
       if ((isKnownTrue && Cmp->getPredicate() == CmpInst::FCMP_OEQ) ||
