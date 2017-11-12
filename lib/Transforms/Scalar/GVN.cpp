@@ -92,11 +92,15 @@ STATISTIC(NumGVNPRE,    "Number of instructions PRE'd");
 STATISTIC(NumGVNBlocks, "Number of blocks merged");
 STATISTIC(NumGVNSimpl,  "Number of instructions simplified");
 STATISTIC(NumGVNEqProp, "Number of equalities propagated");
-STATISTIC(NumPropPtrRoundTrip, "Number of equalities propagated with inttoptr/ptrtoint roundtrip");
 STATISTIC(NumPRELoad,   "Number of loads PRE'd");
+
+// #define PTREQPROP_COUNTER
+#ifdef PTREQPROP_COUNTER
+STATISTIC(NumPropPtrRoundTrip, "Number of equalities propagated with inttoptr/ptrtoint roundtrip");
 STATISTIC(NumPropLogicSameObj,   "Number if p,q are from the same object");
 STATISTIC(NumPropLogicDereferenceable,   "Number if p,q are logic dereferenceable");
 STATISTIC(NumPropPhysical,   "Number if p or q is a physical pointer");
+#endif
 
 static cl::opt<bool> EnablePRE("enable-pre",
                                cl::init(true), cl::Hidden);
@@ -1678,15 +1682,23 @@ bool GVN::replaceOperandsWithConsts(Instruction *Instr) const {
 }
 
 /// Returns true if replacing Op0 with Op1 is safe, given Op0 == Op1.
+/// If needSwap is true, replacing Op1 with Op0 is safe.
 static bool isSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
                                          Instruction *CxtI,
                                          const DataLayout &DL,
-                                         const DominatorTree *DT) {
+                                         const DominatorTree *DT,
+                                         bool &needSwap) {
   // If Op0 is null pointer, it is safe to replace Op0 with Op1.
-  if (isa<ConstantPointerNull>(Op1)) return true;
+  if (isa<ConstantPointerNull>(Op1) || isa<ConstantPointerNull>(Op0)) {
+    needSwap = !isa<ConstantPointerNull>(Op1);
+    return true;
+  }
 
   // If Op1 is inttoptr, it is safe to replace Op0 with Op1.
-  if (isa<IntToPtrInst>(Op1)) return true;
+  if (match(Op1, m_IntToPtr(m_Value())) || match(Op0, m_IntToPtr(m_Value()))) {
+    needSwap = !match(Op1, m_IntToPtr(m_Value()));
+    return true;
+  }
 
   // p = gep inbounds p0, n;
   // q = gep inbounds p0, m;
@@ -1697,7 +1709,7 @@ static bool isSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
       GEP0->getPointerOperand() == GEP1->getPointerOperand())
     return true;
 
- SmallVector<Value *, 4> Op0Bases, Op1Bases;
+  SmallVector<Value *, 4> Op0Bases, Op1Bases;
 	GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 12);
 	GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 12);
   auto isLogical = [](Value *V) {
@@ -1783,36 +1795,52 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
     if (isa<Constant>(LHS) && isa<Constant>(RHS))
       continue;
 
-    // Prefer a constant on the right-hand side, or an Argument if no constants.
-    if (isa<Constant>(LHS) || (isa<Argument>(LHS) && !isa<Constant>(RHS)))
-      std::swap(LHS, RHS);
+    // Prefer values like int2ptr(ptr2int(p)) on the right-hand side.
+    bool OrderFixed = false;
+    if (useRoundCastOnPtrEquality) {
+      if (!isa<Constant>(RHS)) {
+        if (isa<Constant>(LHS)) {
+          // <const, non-const> -> <non-const, const>
+          OrderFixed = true;
+          std::swap(LHS, RHS);
+        } else if (match(LHS, m_IntToPtr(m_Value()))) {
+          // <inttoptr, non-const> -> <non-const, inttoptr>
+          OrderFixed = true;
+          std::swap(LHS, RHS);
+        } else if (match(RHS, m_IntToPtr(m_Value()))) {
+          // LHS is neither const nor inttoptr(..).
+          // Fix the order <val, inttoptr>
+          OrderFixed = true;
+        }
+      } else {
+        // RHS is constant, and LHS is not constant.
+        // Fix the order <val, const>
+        OrderFixed = true;
+      }
+    }
+    if (!OrderFixed) {
+      // Prefer a constant on the right-hand side, or an Argument if no constants.
+      if (isa<Constant>(LHS) || (isa<Argument>(LHS) && !isa<Constant>(RHS)))
+        std::swap(LHS, RHS);
+    }
 
     assert((isa<Argument>(LHS) || isa<Instruction>(LHS)) && "Unexpected value!");
 
     uint32_t LVN = VN.lookupOrAdd(LHS);
 
-    if (useRoundCastOnPtrEquality) {
-      // Prefer values like int2ptr(ptr2int(p)) on the right-hand side.
-      if (isa<IntToPtrInst>(LHS) &&
-          isa<PtrToIntInst>(cast<IntToPtrInst>(LHS)->getOperand(0))) {
+    // If there is no obvious reason to prefer the left-hand side over the
+    // right-hand side, ensure the longest lived term is on the right-hand side,
+    // so the shortest lived term will be replaced by the longest lived.
+    // This tends to expose more simplifications.
+
+    if ((isa<Argument>(LHS) && isa<Argument>(RHS)) ||
+        (isa<Instruction>(LHS) && isa<Instruction>(RHS))) {
+      // Move the 'oldest' value to the right-hand side, using the value number
+      // as a proxy for age.
+      uint32_t RVN = VN.lookupOrAdd(RHS);
+      if (!OrderFixed && (LVN < RVN)) {
         std::swap(LHS, RHS);
-      }
-    } else {
-
-      // If there is no obvious reason to prefer the left-hand side over the
-      // right-hand side, ensure the longest lived term is on the right-hand side,
-      // so the shortest lived term will be replaced by the longest lived.
-      // This tends to expose more simplifications.
-
-      if ((isa<Argument>(LHS) && isa<Argument>(RHS)) ||
-          (isa<Instruction>(LHS) && isa<Instruction>(RHS))) {
-        // Move the 'oldest' value to the right-hand side, using the value number
-        // as a proxy for age.
-        uint32_t RVN = VN.lookupOrAdd(RHS);
-        if (LVN < RVN) {
-          std::swap(LHS, RHS);
-          LVN = RVN;
-        }
+        LVN = RVN;
       }
     }
 
@@ -1838,6 +1866,7 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
               ? replaceDominatedUsesWith(LHS, RHS, *DT, Root)
               : replaceDominatedUsesWith(LHS, RHS, *DT, Root.getStart());
 
+#ifdef PTREQPROP_COUNTER
       // Updated Roundtrip Cast counters
       if (useRoundCastOnPtrEquality) {
 
@@ -1886,10 +1915,10 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
             NumPropLogicDereferenceable+= NumReplacements;
           }
         }
-
-        Changed |= NumReplacements > 0;
-        NumGVNEqProp += NumReplacements;
       }
+#endif
+      Changed |= NumReplacements > 0;
+      NumGVNEqProp += NumReplacements;
     }
 
     // Now try to deduce additional equalities from this one. For example, if
@@ -1937,25 +1966,22 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
           if (isa<Function>(Op0) || isa<Function>(Op1)) IfPerformRoundTrip = false;
 
-          if (isSafeToPropagatePtrEquality(Op0, Op1, CxtI, DL, DT)) {
-            Worklist.push_back(std::make_pair(Op0, Op1));
+          bool needSwap = false;
+          if (isSafeToPropagatePtrEquality(Op0, Op1, CxtI, DL, DT, needSwap)) {
+            Worklist.push_back(needSwap ? std::make_pair(Op1, Op0):
+                                          std::make_pair(Op0, Op1));
             IfPerformRoundTrip = false;
           }
 
-          // Prepare for the transformation
-          //   if (p == const) { use (p) use (const) } ->
-          //      if (p == const) { use (inttoptr(ptrtoint(const))) use(const) }
-          //
-          //  Put the const to Op0
-          bool IfSwaped = false;
-          if (isa<Constant>(Op1)) { IfSwaped = true; std::swap(Op0, Op1); }
-
-          // Do not propagate on propagated pointers
-          IfPerformRoundTrip = IfPerformRoundTrip &&
-              !(match(Op0, m_IntToPtr(m_PtrToInt(m_Value()))) ||
-                match(Op1, m_IntToPtr(m_PtrToInt(m_Value()))));
-
           if (IfPerformRoundTrip) {
+            // Prepare for the transformation
+            //   if (p == const) { use (p) use (const) } ->
+            //      if (p == const) { use (inttoptr(ptrtoint(const))) use(const) }
+            //
+            //  Put the const to Op0
+            bool IfSwaped = false;
+            if (isa<Constant>(Op1)) { IfSwaped = true; std::swap(Op0, Op1); }
+
             Type *Ptr2IntTy =
               Type::getIntNTy (Op0->getContext(),
                                DL.getPointerSizeInBits
@@ -1964,31 +1990,35 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
             IntToPtrInst *OpInt2Ptr = nullptr;
 
             // Find if there is already IntToPtr or PtrToInt available.
-            for (auto *PtIU : Op0->users()) {
-              PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
-              if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
-                OpPtr2Int = PtI;
-                for (auto *ItPU : OpPtr2Int->users())  {
-                  IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
-                  if (ItP && ItP->getDestTy() == Op0 -> getType() &&
-                      DT->dominates(ItP, Cmp)) {
-                    OpInt2Ptr = ItP;
-                    break;
+            if (!isa<Constant>(Op0)) {
+              for (auto *PtIU : Op0->users()) {
+                PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
+                if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
+                  OpPtr2Int = PtI;
+                  for (auto *ItPU : OpPtr2Int->users())  {
+                    IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
+                    if (ItP && ItP->getDestTy() == Op0 -> getType() &&
+                        DT->dominates(ItP, Cmp)) {
+                      OpInt2Ptr = ItP;
+                      break;
+                    }
                   }
+                  break;
                 }
-                break;
               }
             }
 
             if (!OpPtr2Int) {
-              OpPtr2Int = new
-                PtrToIntInst(Op0, Ptr2IntTy,
+              OpPtr2Int = new PtrToIntInst(Op0, Ptr2IntTy,
                              Op0->getName() + ".ptr2int", Cmp);
+              unsigned Num = VN.lookupOrAdd(OpPtr2Int);
+              VN.add(OpPtr2Int, Num);
             }
             if (!OpInt2Ptr) {
-              OpInt2Ptr = new
-                IntToPtrInst(OpPtr2Int, Op0->getType(),
+              OpInt2Ptr = new IntToPtrInst(OpPtr2Int, Op0->getType(),
                              Op0->getName() + ".int2ptr", Cmp);
+              unsigned Num = VN.lookupOrAdd(OpInt2Ptr);
+              VN.add(OpInt2Ptr, Num);
             }
             if (IfSwaped)
               Cmp->setOperand(1, OpInt2Ptr);
