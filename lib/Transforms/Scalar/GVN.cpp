@@ -1677,6 +1677,78 @@ bool GVN::replaceOperandsWithConsts(Instruction *Instr) const {
   return Changed;
 }
 
+/// Returns true if replacing Op0 with Op1 is safe, given Op0 == Op1.
+static bool isSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
+                                         Instruction *CxtI,
+                                         const DataLayout &DL,
+                                         const DominatorTree *DT) {
+  // If Op0 is null pointer, it is safe to replace Op0 with Op1.
+  if (isa<ConstantPointerNull>(Op1)) return true;
+
+  // If Op1 is inttoptr, it is safe to replace Op0 with Op1.
+  if (isa<IntToPtrInst>(Op1)) return true;
+
+  // p = gep inbounds p0, n;
+  // q = gep inbounds p0, m;
+  // if (p == q) { /* it is safe to use q instead of p */ }
+  GEPOperator *GEP0 = dyn_cast<GEPOperator>(Op0);
+  GEPOperator *GEP1 = dyn_cast<GEPOperator>(Op1);
+  if (GEP0 && GEP1 && GEP0->isInBounds() && GEP1->isInBounds() &&
+      GEP0->getPointerOperand() == GEP1->getPointerOperand())
+    return true;
+
+ SmallVector<Value *, 4> Op0Bases, Op1Bases;
+	GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 12);
+	GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 12);
+  auto isLogical = [](Value *V) {
+    return isa<AllocaInst>(V) ||
+           isNoAliasCall(V) ||
+           (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
+  };
+  bool isOp0BaseLogical = true, isOp1BaseLogical = true;
+  for (unsigned i = 0; i < Op0Bases.size(); i++) {
+    if (!isLogical(Op0Bases[i])) {
+      isOp0BaseLogical = false;
+      break;
+    }
+  }
+  for (unsigned i = 0; i < Op1Bases.size(); i++) {
+    if (!isLogical(Op1Bases[i])) {
+      isOp1BaseLogical = false;
+      break;
+    }
+  }
+
+  // alc = alloca
+	// p = gep alc, ..
+  // q = gep alc, ..
+  if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
+      Op0Bases[0] == Op1Bases[0] && isOp0BaseLogical)
+    return true;
+
+  // alc = alloca
+  // alc2 = alloca
+  // store 10, alc
+  // store 20, alc2
+  if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
+      isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT))
+    return true;
+
+  // p = gep inbounds (gep inbounds ... (gep inbounds p0, c1), c2), cn
+  //     c1, c2, .. , cn are non-negative constants
+  // q = gep inbounds (gep inbounds ... (gep inbounds p0, c1'), c2'), cn'
+  //     c1', c2', .., cn' are non-negative constants
+  SmallVector<Value *, 4> Op0Bases2, Op1Bases2;
+	GetUnderlyingObjects(Op0, Op0Bases2, DL, nullptr, 12, true);
+	GetUnderlyingObjects(Op1, Op1Bases2, DL, nullptr, 12, true);
+  if (Op0Bases2.size() == 1 && Op1Bases2.size() == 1 &&
+      Op0Bases2[0] == Op1Bases2[0])
+    return true;
+
+  return false;
+}
+
+
 /// The given values are known to be equal in every block
 /// dominated by 'Root'.  Exploit this, for example by replacing 'LHS' with
 /// 'RHS' everywhere in the scope.  Returns whether a change was made.
@@ -1788,8 +1860,8 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
           isNoAliasCall(V) ||
           (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
         };
-        GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
-        GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
+        GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 12);
+        GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 12);
         bool isOp0Logical = true, isOp1Logical = true;
         for (size_t i = 0; i < Op0Bases.size(); i++)
           isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
@@ -1857,38 +1929,11 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
 
           bool IfPerformRoundTrip = true;
 
-          if( isa<Function>(Op0) || isa<Function>(Op1)) IfPerformRoundTrip = false;
+          if (isa<Function>(Op0) || isa<Function>(Op1)) IfPerformRoundTrip = false;
 
-          // If p,q are logically from same object or locgically an dereferenceable,
-          // do not perform inttoptr/ptrtoint roundtrip insertion.
-          SmallVector<Value *, 4> Op0Bases, Op1Bases;
-
-          auto isLogical = [](Value *V) {
-            return isa<AllocaInst>(V) ||
-            isNoAliasCall(V) ||
-            (isa<GlobalValue>(V) && !isa<GlobalAlias>(V));
-          };
-          GetUnderlyingObjects(Op0, Op0Bases, DL, nullptr, 6);
-          GetUnderlyingObjects(Op1, Op1Bases, DL, nullptr, 6);
-          bool isOp0Logical = true, isOp1Logical = true;
-          for (size_t i = 0; i < Op0Bases.size(); i++)
-            isOp0Logical  = isOp0Logical && isLogical(Op0Bases[i]);
-          for (size_t i = 0; i < Op1Bases.size(); i++)
-            isOp1Logical  = isOp1Logical && isLogical(Op1Bases[i]);
-
-          if (isOp0Logical && isOp1Logical) {
-            // p, q are from same object
-            if (Op0Bases.size() == 1 && Op1Bases.size() == 1 &&
-                Op0Bases[0] == Op1Bases[0]) {
-              Worklist.push_back(std::make_pair(Op0, Op1));
-              IfPerformRoundTrip = false;
-            }
-            // p, q are logical an dereferenceable
-            else if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
-                     isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT)) {
-              Worklist.push_back(std::make_pair(Op0, Op1));
-              IfPerformRoundTrip = false;
-            }
+          if (isSafeToPropagatePtrEquality(Op0, Op1, CxtI, DL, DT)) {
+            Worklist.push_back(std::make_pair(Op0, Op1));
+            IfPerformRoundTrip = false;
           }
 
           // Prepare for the transformation
@@ -1897,75 +1942,58 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
           //
           //  Put the const to Op0
           bool IfSwaped = false;
-          if(isa<Constant>(Op1)) {IfSwaped = true; std::swap(Op0, Op1);}
+          if (isa<Constant>(Op1)) { IfSwaped = true; std::swap(Op0, Op1); }
 
           // Do not propagate on propagated pointers
-          if (!((isa<IntToPtrInst>(Op0) &&
-                 isa<PtrToIntInst>(cast<IntToPtrInst>(Op0)->getOperand(0))) ||
-                (isa<IntToPtrInst>(Op1) &&
-                 isa<PtrToIntInst>(cast<IntToPtrInst>(Op1)->getOperand(0))))) {
+          IfPerformRoundTrip = IfPerformRoundTrip &&
+              !(match(Op0, m_IntToPtr(m_PtrToInt(m_Value()))) ||
+                match(Op1, m_IntToPtr(m_PtrToInt(m_Value()))));
 
-            // Do not propagate if p or q is a inttoptr (physical pointer)
-            if (isa<IntToPtrInst>(Op0) || isa<IntToPtrInst>(Op1)) {
-              Worklist.push_back(std::make_pair(Op0, Op1));
-              IfPerformRoundTrip = false;
-            }
+          if (IfPerformRoundTrip) {
+            Type *Ptr2IntTy =
+              Type::getIntNTy (Op0->getContext(),
+                               DL.getPointerSizeInBits
+                               (Op0->getType()->getPointerAddressSpace()));
+            PtrToIntInst *OpPtr2Int = nullptr;
+            IntToPtrInst *OpInt2Ptr = nullptr;
 
-            // If either Op0 or Op1 is a null pointer constant, then do not
-            // perform inttoptr(ptrtoint(p)) transformation. Instead, directly
-            // replace one with another.
-            if (isa<ConstantPointerNull>(Op0) ||
-                isa<ConstantPointerNull>(Op1)) {
-              Worklist.push_back(std::make_pair(Op0, Op1));
-              IfPerformRoundTrip = false;
-            }
-
-            if (IfPerformRoundTrip) {
-              Type *Ptr2IntTy =
-                Type::getIntNTy (Op0->getContext(),
-                                 DL.getPointerSizeInBits
-                                 (Op0->getType()->getPointerAddressSpace()));
-              PtrToIntInst *OpPtr2Int = nullptr;
-              IntToPtrInst *OpInt2Ptr = nullptr;
-
-              // Find if there is already IntToPtr or PtrToInt available.
-              for (auto *PtIU : Op0->users()) {
-                PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
-                if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
-                  OpPtr2Int = PtI;
-                  for (auto *ItPU : OpPtr2Int->users())  {
-                    IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
-                    if (ItP && ItP->getDestTy() == Op0 -> getType() &&
-                        DT->dominates(ItP, Cmp)) {
-                      OpInt2Ptr = ItP;
-                      break;
-                    }
+            // Find if there is already IntToPtr or PtrToInt available.
+            for (auto *PtIU : Op0->users()) {
+              PtrToIntInst *PtI = dyn_cast<PtrToIntInst>(PtIU);
+              if (PtI && PtI->getDestTy() == Ptr2IntTy && DT->dominates(PtI, Cmp)){
+                OpPtr2Int = PtI;
+                for (auto *ItPU : OpPtr2Int->users())  {
+                  IntToPtrInst *ItP = dyn_cast<IntToPtrInst>(ItPU);
+                  if (ItP && ItP->getDestTy() == Op0 -> getType() &&
+                      DT->dominates(ItP, Cmp)) {
+                    OpInt2Ptr = ItP;
+                    break;
                   }
-                  break;
                 }
+                break;
               }
-
-              if (!OpPtr2Int) {
-                OpPtr2Int = new
-                  PtrToIntInst(Op0, Ptr2IntTy,
-                               Op0->getName() + ".ptr2int", Cmp);
-              }
-              if (!OpInt2Ptr) {
-                OpInt2Ptr = new
-                  IntToPtrInst(OpPtr2Int, Op0->getType(),
-                               Op0->getName() + ".int2ptr", Cmp);
-              }
-              if (IfSwaped)
-                Cmp->setOperand(1, OpInt2Ptr);
-              else
-                Cmp->setOperand(0, OpInt2Ptr);
-              Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
-              if (!isa<Constant>(Op0))
-                Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
             }
+
+            if (!OpPtr2Int) {
+              OpPtr2Int = new
+                PtrToIntInst(Op0, Ptr2IntTy,
+                             Op0->getName() + ".ptr2int", Cmp);
+            }
+            if (!OpInt2Ptr) {
+              OpInt2Ptr = new
+                IntToPtrInst(OpPtr2Int, Op0->getType(),
+                             Op0->getName() + ".int2ptr", Cmp);
+            }
+            if (IfSwaped)
+              Cmp->setOperand(1, OpInt2Ptr);
+            else
+              Cmp->setOperand(0, OpInt2Ptr);
+            Worklist.push_back(std::make_pair(OpInt2Ptr, Op1));
+            if (!isa<Constant>(Op0))
+              Worklist.push_back(std::make_pair(OpInt2Ptr, Op0));
           }
-        }
-        else Worklist.push_back(std::make_pair(Op0, Op1));
+        } else
+          Worklist.push_back(std::make_pair(Op0, Op1));
       }
 
       // Handle the floating point versions of equality comparisons too.
