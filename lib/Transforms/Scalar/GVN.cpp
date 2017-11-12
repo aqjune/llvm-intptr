@@ -1730,7 +1730,8 @@ static bool isSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
   // alc2 = alloca
   // store 10, alc
   // store 20, alc2
-  if (isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
+  if (isOp0BaseLogical && isOp1BaseLogical &&
+      isSafeToLoadUnconditionally(Op0, 0, DL, CxtI, DT) &&
       isSafeToLoadUnconditionally(Op1, 0, DL, CxtI, DT))
     return true;
 
@@ -1738,12 +1739,17 @@ static bool isSafeToPropagatePtrEquality(Value *Op0, Value *Op1,
   //     c1, c2, .. , cn are non-negative constants
   // q = gep inbounds (gep inbounds ... (gep inbounds p0, c1'), c2'), cn'
   //     c1', c2', .., cn' are non-negative constants
-  SmallVector<Value *, 4> Op0Bases2, Op1Bases2;
-	GetUnderlyingObjects(Op0, Op0Bases2, DL, nullptr, 12, true);
-	GetUnderlyingObjects(Op1, Op1Bases2, DL, nullptr, 12, true);
-  if (Op0Bases2.size() == 1 && Op1Bases2.size() == 1 &&
-      Op0Bases2[0] == Op1Bases2[0])
+  if (GetUnderlyingObject(Op0, DL, 12, true) ==
+	    GetUnderlyingObject(Op1, DL, 12, true))
     return true;
+  else {
+    SmallVector<Value *, 4> Op0Bases2, Op1Bases2;
+    GetUnderlyingObjects(Op0, Op0Bases2, DL, nullptr, 12, true);
+    GetUnderlyingObjects(Op1, Op1Bases2, DL, nullptr, 12, true);
+    if (Op0Bases2.size() == 1 && Op1Bases2.size() == 1 &&
+        Op0Bases2[0] == Op1Bases2[0])
+      return true;
+  }
 
   return false;
 }
