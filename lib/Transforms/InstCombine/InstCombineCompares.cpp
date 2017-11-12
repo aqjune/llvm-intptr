@@ -3496,28 +3496,18 @@ Instruction *InstCombiner::foldICmpWithCastAndCast(ICmpInst &ICmp) {
   Type *DestTy    = LHSCI->getType();
   Value *RHSCIOp;
 
-  // Turn icmp (ptrtoint x), (ptrtoint/c) into a compare of the input if the
+  // Turn icmp (ptrtoint x), c into a compare of the input if the
   // integer type is the same size as the pointer type.
-  /*
-   * if (LHSCI->getOpcode() == Instruction::PtrToInt &&
+  if (LHSCI->getOpcode() == Instruction::PtrToInt &&
       DL.getPointerTypeSizeInBits(SrcTy) == DestTy->getIntegerBitWidth()) {
     Value *RHSOp = nullptr;
-    if (auto *RHSC = dyn_cast<PtrToIntOperator>(ICmp.getOperand(1))) {
-      Value *RHSCIOp = RHSC->getOperand(0);
-      if (RHSCIOp->getType()->getPointerAddressSpace() ==
-          LHSCIOp->getType()->getPointerAddressSpace()) {
-        RHSOp = RHSC->getOperand(0);
-        // If the pointer types don't match, insert a bitcast.
-        if (LHSCIOp->getType() != RHSOp->getType())
-          RHSOp = Builder.CreateBitCast(RHSOp, LHSCIOp->getType());
-      }
-    } else if (auto *RHSC = dyn_cast<Constant>(ICmp.getOperand(1))) {
+    if (auto *RHSC = dyn_cast<Constant>(ICmp.getOperand(1))) {
       RHSOp = ConstantExpr::getIntToPtr(RHSC, SrcTy);
     }
 
     if (RHSOp)
       return new ICmpInst(ICmp.getPredicate(), LHSCIOp, RHSOp);
-  }*/
+  }
 
   // The code below only handles extension cast instructions, so far.
   // Enforce this.
