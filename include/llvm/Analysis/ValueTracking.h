@@ -280,7 +280,7 @@ template <typename T> class ArrayRef;
   /// be stripped off.
   Value *GetUnderlyingObject(Value *V, const DataLayout &DL,
                              unsigned MaxLookup = 6,
-                             bool TrackInBoundsNonnegOfsOnly = false);
+                             bool TrackInBoundsPositiveOfsOnly = false);
   static inline const Value *GetUnderlyingObject(const Value *V,
                                                  const DataLayout &DL,
                                                  unsigned MaxLookup = 6) {
@@ -318,7 +318,7 @@ template <typename T> class ArrayRef;
   void GetUnderlyingObjects(Value *V, SmallVectorImpl<Value *> &Objects,
                             const DataLayout &DL, LoopInfo *LI = nullptr,
                             unsigned MaxLookup = 6,
-                            bool TrackInBoundsNonnegOfsOnly = false);
+                            bool TrackInBoundsPositiveOfsOnly = false);
 
   /// This is a wrapper around GetUnderlyingObjects and adds support for basic
   /// ptrtoint+arithmetic+inttoptr sequences.
