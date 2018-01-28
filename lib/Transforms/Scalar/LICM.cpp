@@ -1240,16 +1240,8 @@ bool llvm::promoteLoopAccessesToScalars(
     else {
       Value *Object = GetUnderlyingObject(SomePtr, MDL);
       SafeToInsertStore =
-<<<<<<< HEAD
         (isAllocLikeFn(Object, TLI) || isa<AllocaInst>(Object)) && 
-        !PointerMayBeCaptured(Object, true, true);
-||||||| parent of 82666c2ba33... Update CaptureTracking to support PSub
-          (isAllocLikeFn(Object, TLI) || isa<AllocaInst>(Object)) &&
-          !PointerMayBeCaptured(Object, true, true);
-=======
-          (isAllocLikeFn(Object, TLI) || isa<AllocaInst>(Object)) &&
-          !PointerMayBeCaptured(Object, true, true, TLI);
->>>>>>> 82666c2ba33... Update CaptureTracking to support PSub
+        !PointerMayBeCaptured(Object, true, true, TLI);
     }
   }
 

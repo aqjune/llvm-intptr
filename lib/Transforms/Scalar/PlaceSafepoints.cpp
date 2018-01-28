@@ -54,6 +54,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -113,6 +114,7 @@ struct PlaceBackedgeSafepointsImpl : public FunctionPass {
   ScalarEvolution *SE = nullptr;
   DominatorTree *DT = nullptr;
   LoopInfo *LI = nullptr;
+  TargetLibraryInfo *TLI = nullptr;
 
   PlaceBackedgeSafepointsImpl(bool CallSafepoints = false)
       : FunctionPass(ID), CallSafepointsEnabled(CallSafepoints) {
@@ -131,6 +133,7 @@ struct PlaceBackedgeSafepointsImpl : public FunctionPass {
     SE = &getAnalysis<ScalarEvolutionWrapperPass>().getSE();
     DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
     LI = &getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
+    TLI = &getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
     for (Loop *I : *LI) {
       runOnLoopAndSubLoops(I);
     }
@@ -141,6 +144,7 @@ struct PlaceBackedgeSafepointsImpl : public FunctionPass {
     AU.addRequired<DominatorTreeWrapperPass>();
     AU.addRequired<ScalarEvolutionWrapperPass>();
     AU.addRequired<LoopInfoWrapperPass>();
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
     // We no longer modify the IR at all in this pass.  Thus all
     // analysis are preserved.
     AU.setPreservesAll();
@@ -165,6 +169,7 @@ struct PlaceSafepoints : public FunctionPass {
     // We modify the graph wholesale (inlining, block insertion, etc).  We
     // preserve nothing at the moment.  We could potentially preserve dom tree
     // if that was worth doing
+    AU.addRequired<TargetLibraryInfoWrapperPass>();
   }
 };
 }
@@ -174,7 +179,8 @@ struct PlaceSafepoints : public FunctionPass {
 // callers job.
 static void
 InsertSafepointPoll(Instruction *InsertBefore,
-                    std::vector<CallSite> &ParsePointsNeeded /*rval*/);
+                    std::vector<CallSite> &ParsePointsNeeded /*rval*/,
+                    const TargetLibraryInfo &TLI);
 
 static bool needsStatepoint(const CallSite &CS) {
   if (callsGCLeafFunction(CS))
@@ -472,6 +478,9 @@ bool PlaceSafepoints::runOnFunction(Function &F) {
   if (!shouldRewriteFunction(F))
     return false;
 
+  const TargetLibraryInfo &TLI =
+      getAnalysis<TargetLibraryInfoWrapperPass>().getTLI();
+
   bool Modified = false;
 
   // In various bits below, we rely on the fact that uses are reachable from
@@ -578,7 +587,7 @@ bool PlaceSafepoints::runOnFunction(Function &F) {
   // safepoint polls themselves.
   for (Instruction *PollLocation : PollsNeeded) {
     std::vector<CallSite> RuntimeCalls;
-    InsertSafepointPoll(PollLocation, RuntimeCalls);
+    InsertSafepointPoll(PollLocation, RuntimeCalls, TLI);
     ParsePointNeeded.insert(ParsePointNeeded.end(), RuntimeCalls.begin(),
                             RuntimeCalls.end());
   }
@@ -610,7 +619,8 @@ INITIALIZE_PASS_END(PlaceSafepoints, "place-safepoints", "Place Safepoints",
 
 static void
 InsertSafepointPoll(Instruction *InsertBefore,
-                    std::vector<CallSite> &ParsePointsNeeded /*rval*/) {
+                    std::vector<CallSite> &ParsePointsNeeded /*rval*/,
+                    const TargetLibraryInfo &TLI) {
   BasicBlock *OrigBB = InsertBefore->getParent();
   Module *M = InsertBefore->getModule();
   assert(M && "must be part of a module");
