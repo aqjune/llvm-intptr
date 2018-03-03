@@ -1372,7 +1372,7 @@ bool GVN::processAssumeIntrinsic(IntrinsicInst *IntrinsicI) {
 
     // This property is only true in dominated successors, propagateEquality
     // will check dominance for us.
-    Changed |= propagateEquality(V, True, Edge, false);
+    Changed |= propagateEquality(V, True, Edge, false, false);
   }
 
   // We can replace assume value with true, which covers cases like this:
@@ -1668,7 +1668,7 @@ bool GVN::replaceOperandsWithConsts(Instruction *Instr) const {
 /// If DominatesByEdge is false, then it means that we will propagate the RHS
 /// value starting from the end of Root.Start.
 bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
-                            bool DominatesByEdge) {
+                            bool DominatesByEdge, bool acceptFirstLoop) {
   SmallVector<std::pair<Value*, Value*>, 4> Worklist;
   Worklist.push_back(std::make_pair(LHS, RHS));
   bool Changed = false;
@@ -1687,6 +1687,11 @@ bool GVN::propagateEquality(Value *LHS, Value *RHS, const BasicBlockEdge &Root,
     // Don't try to propagate equalities between constants.
     if (isa<Constant>(LHS) && isa<Constant>(RHS))
       continue;
+
+    if (LHS->getType()->isIntOrIntVectorTy() && !acceptFirstLoop)
+      continue;
+
+    acceptFirstLoop = false;
 
     // Prefer a constant on the right-hand side, or an Argument if no constants.
     if (isa<Constant>(LHS) || (isa<Argument>(LHS) && !isa<Constant>(RHS)))
@@ -1887,11 +1892,11 @@ bool GVN::processInstruction(Instruction *I) {
 
     Value *TrueVal = ConstantInt::getTrue(TrueSucc->getContext());
     BasicBlockEdge TrueE(Parent, TrueSucc);
-    Changed |= propagateEquality(BranchCond, TrueVal, TrueE, true);
+    Changed |= propagateEquality(BranchCond, TrueVal, TrueE, true, true);
 
     Value *FalseVal = ConstantInt::getFalse(FalseSucc->getContext());
     BasicBlockEdge FalseE(Parent, FalseSucc);
-    Changed |= propagateEquality(BranchCond, FalseVal, FalseE, true);
+    Changed |= propagateEquality(BranchCond, FalseVal, FalseE, true, true);
 
     return Changed;
   }
@@ -1913,7 +1918,7 @@ bool GVN::processInstruction(Instruction *I) {
       // If there is only a single edge, propagate the case value into it.
       if (SwitchEdges.lookup(Dst) == 1) {
         BasicBlockEdge E(Parent, Dst);
-        Changed |= propagateEquality(SwitchCond, i->getCaseValue(), E, true);
+        Changed |= propagateEquality(SwitchCond, i->getCaseValue(), E, true, false);
       }
     }
     return Changed;
