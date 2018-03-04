@@ -1266,7 +1266,7 @@ static LVILatticeVal getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
   Value *RHS = ICI->getOperand(1);
   CmpInst::Predicate Predicate = ICI->getPredicate();
 
-  if (isa<Constant>(RHS)) {
+  /*if (isa<Constant>(RHS)) {
     if (ICI->isEquality() && LHS == Val) {
       // We know that V has the RHS constant if this is a true SETEQ or
       // false SETNE.
@@ -1275,7 +1275,7 @@ static LVILatticeVal getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
       else
         return LVILatticeVal::getNot(cast<Constant>(RHS));
     }
-  }
+  }*/
 
   if (!Val->getType()->isIntegerTy())
     return LVILatticeVal::getOverdefined();
