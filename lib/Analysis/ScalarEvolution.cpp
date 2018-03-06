@@ -2281,6 +2281,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
            "SCEVAddExpr operand types don't match!");
 #endif
 
+  //llvm::dbgs() << "getAddExpr(): Here are Ops!:\n";
+  //for (unsigned i = 0; i < Ops.size(); i++)
+  //  llvm::dbgs() << "\t" << *Ops[i] << "\n";
+
   // Sort by complexity, this groups all similar expression types together.
   GroupByComplexity(Ops, &LI, DT);
 
@@ -2307,10 +2311,12 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
 
     if (Ops.size() == 1) return Ops[0];
   }
+  //llvm::dbgs() << "\tCase 1!\n";
 
   // Limit recursion calls depth.
   if (Depth > MaxArithDepth)
     return getOrCreateAddExpr(Ops, Flags);
+  //llvm::dbgs() << "\tCase 2!\n";
 
   // Okay, check to see if the same value occurs in the operand list more than
   // once.  If so, merge them together into an multiply expression.  Since we
@@ -2335,6 +2341,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
     }
   if (FoundMatch)
     return getAddExpr(Ops, Flags);
+  //llvm::dbgs() << "\tCase 3!\n";
+  //llvm::dbgs() << "\t\tHere are Ops!:\n";
+  for (unsigned i = 0; i < Ops.size(); i++)
+    //llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // Check for truncates. If all the operands are truncated from the same
   // type, see if factoring out the truncate would permit the result to be
@@ -2389,6 +2399,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
         return getTruncateExpr(Fold, DstType);
     }
   }
+  //llvm::dbgs() << "\tCase 4!\n";
+  //llvm::dbgs() << "\t\tHere are Ops!:\n";
+  //for (unsigned i = 0; i < Ops.size(); i++)
+  //  llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // Skip past any other cast SCEVs.
   while (Idx < Ops.size() && Ops[Idx]->getSCEVType() < scAddExpr)
@@ -2414,6 +2428,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
     if (DeletedAdd)
       return getAddExpr(Ops, SCEV::FlagAnyWrap, Depth + 1);
   }
+  //llvm::dbgs() << "\tCase 5!\n";
+  //llvm::dbgs() << "\t\tHere are Ops!:\n";
+  //for (unsigned i = 0; i < Ops.size(); i++)
+  //  llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // Skip over the add expression until we get to a multiply.
   while (Idx < Ops.size() && Ops[Idx]->getSCEVType() < scMulExpr)
@@ -2458,6 +2476,11 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       return getAddExpr(Ops, SCEV::FlagAnyWrap, Depth + 1);
     }
   }
+  // Leaving it for the use in the future
+  //llvm::dbgs() << "\tCase 6!\n";
+  //llvm::dbgs() << "\t\tHere are Ops!:\n";
+  //for (unsigned i = 0; i < Ops.size(); i++)
+  //  llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // If we are adding something to a multiply expression, make sure the
   // something is not already an operand of the multiply.  If so, merge it into
@@ -2535,6 +2558,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
       }
     }
   }
+  //llvm::dbgs() << "\tCase 7!\n";
+  //llvm::dbgs() << "\t\tHere are Ops!:\n";
+  //for (unsigned i = 0; i < Ops.size(); i++)
+  //  llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // If there are any add recurrences in the operands list, see if any other
   // added values are loop invariant.  If so, we can fold them into the
@@ -2629,6 +2656,10 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
     // Otherwise couldn't fold anything into this recurrence.  Move onto the
     // next one.
   }
+  //llvm::dbgs() << "\tCase 8 - end!\n";
+  //llvm::dbgs() << "\t\tHere are Ops!:\n";
+  //for (unsigned i = 0; i < Ops.size(); i++)
+  //  llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // Okay, it looks like we really DO need an add expr.  Check to see if we
   // already have one, otherwise create a new one.
@@ -7735,9 +7766,11 @@ static Constant *BuildConstantFromSCEV(const SCEV *V) {
 const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   if (isa<SCEVConstant>(V)) return V;
 
+  //llvm::dbgs() << "computeSCEVAtScope(): V: " << *V << "\n";
   // If this instruction is evolved from a constant-evolving PHI, compute the
   // exit value from the loop without using SCEVs.
   if (const SCEVUnknown *SU = dyn_cast<SCEVUnknown>(V)) {
+    //llvm::dbgs() << "\tCase 1\n";
     if (Instruction *I = dyn_cast<Instruction>(SU->getValue())) {
       const Loop *LI = this->LI[I->getParent()];
       if (LI && LI->getParentLoop() == L)  // Looking for loop exit value.
@@ -7834,6 +7867,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   }
 
   if (const SCEVCommutativeExpr *Comm = dyn_cast<SCEVCommutativeExpr>(V)) {
+    //llvm::dbgs() << "\tCase 2\n";
     // Avoid performing the look-up in the common case where the specified
     // expression has no loop-variant portions.
     for (unsigned i = 0, e = Comm->getNumOperands(); i != e; ++i) {
@@ -7875,6 +7909,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   // If this is a loop recurrence for a loop that does not contain L, then we
   // are dealing with the final value computed by the loop.
   if (const SCEVAddRecExpr *AddRec = dyn_cast<SCEVAddRecExpr>(V)) {
+    //llvm::dbgs() << "\tCase 3\n";
     // First, attempt to evaluate each operand.
     // Avoid performing the look-up in the common case where the specified
     // expression has no loop-variant portions.
@@ -7882,6 +7917,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
       const SCEV *OpAtScope = getSCEVAtScope(AddRec->getOperand(i), L);
       if (OpAtScope == AddRec->getOperand(i))
         continue;
+      //llvm::dbgs() << "\tCase 3-1\n";
 
       // Okay, at least one of these operands is loop variant but might be
       // foldable.  Build a new instance of the folded commutative expression.
@@ -7906,6 +7942,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
     // If the scope is outside the addrec's loop, evaluate it by using the
     // loop exit value of the addrec.
     if (!AddRec->getLoop()->contains(L)) {
+      //llvm::dbgs() << "\tCase 3-2\n";
       // To evaluate this recurrence, we need to know how many times the AddRec
       // loop iterates.  Compute this now.
       const SCEV *BackedgeTakenCount = getBackedgeTakenCount(AddRec->getLoop());
@@ -7919,6 +7956,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   }
 
   if (const SCEVZeroExtendExpr *Cast = dyn_cast<SCEVZeroExtendExpr>(V)) {
+    //llvm::dbgs() << "\tCase 4\n";
     const SCEV *Op = getSCEVAtScope(Cast->getOperand(), L);
     if (Op == Cast->getOperand())
       return Cast;  // must be loop invariant
@@ -7926,6 +7964,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   }
 
   if (const SCEVSignExtendExpr *Cast = dyn_cast<SCEVSignExtendExpr>(V)) {
+    //llvm::dbgs() << "\tCase 5\n";
     const SCEV *Op = getSCEVAtScope(Cast->getOperand(), L);
     if (Op == Cast->getOperand())
       return Cast;  // must be loop invariant
@@ -7933,6 +7972,7 @@ const SCEV *ScalarEvolution::computeSCEVAtScope(const SCEV *V, const Loop *L) {
   }
 
   if (const SCEVTruncateExpr *Cast = dyn_cast<SCEVTruncateExpr>(V)) {
+    //llvm::dbgs() << "\tCase 6\n";
     const SCEV *Op = getSCEVAtScope(Cast->getOperand(), L);
     if (Op == Cast->getOperand())
       return Cast;  // must be loop invariant

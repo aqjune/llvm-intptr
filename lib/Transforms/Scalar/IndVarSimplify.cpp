@@ -570,6 +570,7 @@ void IndVarSimplify::rewriteLoopExitValues(Loop *L, SCEVExpander &Rewriter) {
         // and varies predictably *inside* the loop.  Evaluate the value it
         // contains when the loop exits, if possible.
         const SCEV *ExitValue = SE->getSCEVAtScope(Inst, L->getParentLoop());
+        //llvm::dbgs() << "Print SCEV ExitValue: " << *ExitValue << "\n";
         if (!SE->isLoopInvariant(ExitValue, L) ||
             !isSafeToExpand(ExitValue, *SE))
           continue;
@@ -2369,6 +2370,10 @@ bool IndVarSimplify::run(Loop *L) {
   assert(L->isRecursivelyLCSSAForm(*DT, *LI) &&
          "LCSSA required to run indvars!");
 
+  //llvm::dbgs() << "begin--------------------------------\n";
+  //llvm::dbgs() << *(L->getHeader()->getParent());
+  //llvm::dbgs() << "-------------------------------------\n";
+
   // If LoopSimplify form is not available, stay out of trouble. Some notes:
   //  - LSR currently only supports LoopSimplify-form loops. Indvars'
   //    canonicalization can be a pessimization without LSR to "clean up"
@@ -2393,6 +2398,10 @@ bool IndVarSimplify::run(Loop *L) {
   Rewriter.setDebugType(DEBUG_TYPE);
 #endif
 
+  //llvm::dbgs() << "--0---------------------------------\n";
+  //llvm::dbgs() << *(L->getHeader()->getParent());
+  //llvm::dbgs() << "-------------------------------------\n";
+
   // Eliminate redundant IV users.
   //
   // Simplification works best when run before other consumers of SCEV. We
@@ -2402,15 +2411,23 @@ bool IndVarSimplify::run(Loop *L) {
   Rewriter.disableCanonicalMode();
   simplifyAndExtend(L, Rewriter, LI);
 
+  //llvm::dbgs() << "--1----------------------------------\n";
+  //llvm::dbgs() << *(L->getHeader()->getParent());
+  //llvm::dbgs() << "-------------------------------------\n";
+
   // Check to see if this loop has a computable loop-invariant execution count.
   // If so, this means that we can compute the final value of any expressions
   // that are recurrent in the loop, and substitute the exit values from the
   // loop into any instructions outside of the loop that use the final values of
   // the current expressions.
   //
-  if (ReplaceExitValue != NeverRepl &&
-      !isa<SCEVCouldNotCompute>(BackedgeTakenCount))
-    rewriteLoopExitValues(L, Rewriter);
+  //if (ReplaceExitValue != NeverRepl &&
+  //    !isa<SCEVCouldNotCompute>(BackedgeTakenCount))
+  //  rewriteLoopExitValues(L, Rewriter);
+
+  //llvm::dbgs() << "--2----------------------------------\n";
+  //llvm::dbgs() << *(L->getHeader()->getParent());
+  //llvm::dbgs() << "-------------------------------------\n";
 
   // Eliminate redundant IV cycles.
   NumElimIV += Rewriter.replaceCongruentIVs(L, DT, DeadInsts);
@@ -2439,6 +2456,10 @@ bool IndVarSimplify::run(Loop *L) {
   // can be deleted in the loop below, causing the AssertingVH in the cache to
   // trigger.
   Rewriter.clear();
+
+  //llvm::dbgs() << "--3----------------------------------\n";
+  //llvm::dbgs() << *(L->getHeader()->getParent());
+  //llvm::dbgs() << "-------------------------------------\n";
 
   // Now that we're done iterating through lists, clean up any instructions
   // which are now dead.
@@ -2481,6 +2502,10 @@ bool IndVarSimplify::run(Loop *L) {
     assert(BackedgeTakenCount == NewBECount && "indvars must preserve SCEV");
   }
 #endif
+
+  //llvm::dbgs() << "end----------------------------------\n";
+  //llvm::dbgs() << *(L->getHeader()->getParent());
+  //llvm::dbgs() << "-------------------------------------\n";
 
   return Changed;
 }
