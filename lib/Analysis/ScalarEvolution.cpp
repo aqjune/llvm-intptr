@@ -2343,7 +2343,7 @@ const SCEV *ScalarEvolution::getAddExpr(SmallVectorImpl<const SCEV *> &Ops,
     return getAddExpr(Ops, Flags);
   //llvm::dbgs() << "\tCase 3!\n";
   //llvm::dbgs() << "\t\tHere are Ops!:\n";
-  for (unsigned i = 0; i < Ops.size(); i++)
+  //for (unsigned i = 0; i < Ops.size(); i++)
     //llvm::dbgs() << "\t\t" << *Ops[i] << "\n";
 
   // Check for truncates. If all the operands are truncated from the same

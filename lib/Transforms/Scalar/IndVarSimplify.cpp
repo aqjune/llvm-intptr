@@ -539,7 +539,7 @@ void IndVarSimplify::rewriteLoopExitValues(Loop *L, SCEVExpander &Rewriter) {
       if (PN->use_empty())
         continue; // dead use, don't replace it
 
-      if (!SE->isSCEVable(PN->getType()))
+      if (!SE->isSCEVable(PN->getType()) || PN->getType()->isIntOrIntVectorTy())
         continue;
 
       // It's necessary to tell ScalarEvolution about this explicitly so that
@@ -2421,9 +2421,9 @@ bool IndVarSimplify::run(Loop *L) {
   // loop into any instructions outside of the loop that use the final values of
   // the current expressions.
   //
-  //if (ReplaceExitValue != NeverRepl &&
-  //    !isa<SCEVCouldNotCompute>(BackedgeTakenCount))
-  //  rewriteLoopExitValues(L, Rewriter);
+  if (ReplaceExitValue != NeverRepl &&
+      !isa<SCEVCouldNotCompute>(BackedgeTakenCount))
+    rewriteLoopExitValues(L, Rewriter);
 
   //llvm::dbgs() << "--2----------------------------------\n";
   //llvm::dbgs() << *(L->getHeader()->getParent());
