@@ -172,6 +172,7 @@ void initializeInstSimplifierPass(PassRegistry&);
 void initializeInstrProfilingLegacyPassPass(PassRegistry&);
 void initializeInstructionCombiningPassPass(PassRegistry&);
 void initializeInstructionSelectPass(PassRegistry&);
+void initializeInitialIntPtrFoldPass(PassRegistry&);
 void initializeInterleavedAccessPass(PassRegistry&);
 void initializeInternalizeLegacyPassPass(PassRegistry&);
 void initializeIntervalPartitionPass(PassRegistry&);
