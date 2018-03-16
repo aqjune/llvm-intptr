@@ -271,6 +271,7 @@ static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
                                   unsigned SizeLevel) {
   if (!NoVerify || VerifyEach)
     FPM.add(createVerifierPass()); // Verify that input is correct
+  FPM.add(createInitialIntPtrFoldPass());
 
   PassManagerBuilder Builder;
   Builder.OptLevel = OptLevel;
