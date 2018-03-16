@@ -38,6 +38,12 @@ FunctionPass *createConstantPropagationPass();
 
 //===----------------------------------------------------------------------===//
 //
+// IntPtrFold - Fold inttoptr(ptrtoint(p))
+//
+FunctionPass *createInitialIntPtrFoldPass();
+
+//===----------------------------------------------------------------------===//
+//
 // AlignmentFromAssumptions - Use assume intrinsics to set load/store
 // alignments.
 //
