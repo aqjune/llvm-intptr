@@ -1267,7 +1267,7 @@ static LVILatticeVal getValueFromICmpCondition(Value *Val, ICmpInst *ICI,
   CmpInst::Predicate Predicate = ICI->getPredicate();
 
   if (isa<Constant>(RHS)) {
-    if (ICI->isEquality() && LHS == Val) {
+    if (ICI->isEquality() && LHS == Val && !LHS->getType()->isPtrOrPtrVectorTy()) {
       // We know that V has the RHS constant if this is a true SETEQ or
       // false SETNE.
       if (isTrueDest == (Predicate == ICmpInst::ICMP_EQ))
