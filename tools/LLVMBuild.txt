@@ -19,6 +19,7 @@
 subdirectories =
  bugpoint
  dsymutil
+ instcounter
  llc
  lli
  llvm-ar
