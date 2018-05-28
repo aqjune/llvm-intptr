@@ -11,6 +11,7 @@
 #include <llvm/IR/Operator.h>
 #include <llvm/Bitcode/BitcodeReader.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/FileSystem.h>
 
 using namespace llvm;
 
@@ -109,27 +110,94 @@ static RegisterPass<InstCountPass> X("hello", "Hello World Pass",
                              false /* Only looks at CFG */,
                              false /* Analysis Pass */);
 
-int main(int argc, char *argv[]){
-  if (argc != 2 && argc != 3) {
-    std::cerr << "Usage : " << argv[0] << " <.bc file>" << std::endl;
-    std::cerr << "Usage : " << argv[0] << " <.bc file> <distinguish-const-and-inst(y/n)>" << std::endl;
-    return 1;
+
+
+class Stat {
+public:
+  int total_i;
+  int ptrtoint_i;
+  int ptrtoint_cexpr;
+  int gep_i;
+  int gep_cexpr;
+  int gep_inb_i;
+  int gep_inb_cexpr;
+  int inttoptr_i;
+  int inttoptr_cexpr;
+  int psub;
+
+  Stat(): total_i(0), ptrtoint_i(0), ptrtoint_cexpr(0), gep_i(0), gep_cexpr(0),
+    gep_inb_i(0), gep_inb_cexpr(0), inttoptr_i(0), inttoptr_cexpr(0),
+    psub(0) {}
+
+  Stat(InstCountPass *ip) {
+    total_i = ip->TotalInsts;
+    inttoptr_i = ip->NumInst["inttoptr"];
+    ptrtoint_i = ip->NumInst["ptrtoint"];
+    gep_i = ip->NumInst["getelementptr"];
+    gep_inb_i = ip->GEPInboundsCount;
+    psub = ip->PSubCount;
+    inttoptr_cexpr = ip->NumConstExpr["inttoptr"];
+    ptrtoint_cexpr = ip->NumConstExpr["ptrtoint"];
+    gep_cexpr = ip->NumConstExpr["getelementptr"];
+    gep_inb_cexpr = ip->ConstExprGEPInboundsCount;
   }
 
-  StringRef filename = argv[1];
-  LLVMContext context;
+  Stat operator+(const Stat &s) {
+    Stat ns;
+#define UPDATE_FIELD(FNAME) ns.FNAME = FNAME + s.FNAME
+    UPDATE_FIELD(total_i);
+    UPDATE_FIELD(ptrtoint_i);
+    UPDATE_FIELD(ptrtoint_cexpr);
+    UPDATE_FIELD(gep_i);
+    UPDATE_FIELD(gep_cexpr);
+    UPDATE_FIELD(gep_inb_i);
+    UPDATE_FIELD(gep_inb_cexpr);
+    UPDATE_FIELD(inttoptr_i);
+    UPDATE_FIELD(inttoptr_cexpr);
+    UPDATE_FIELD(psub);
+#undef UPDATE_FIELD
+    return ns;
+  }
 
+  void print(bool distinguishConstAndInst) {
+#define PRINT(LABEL, VALUE) std::cout << LABEL << " " << (VALUE) << std::endl
+    PRINT("inst total", total_i);
+    if (distinguishConstAndInst) {
+      // Distinguish constexpr and inst.
+      PRINT("inst inttoptr", inttoptr_i);
+      PRINT("inst ptrtoint", ptrtoint_i);
+      PRINT("inst getelementptr_all", gep_i);
+      PRINT("inst getelementptr_inbounds", gep_inb_i);
+      PRINT("inst psub", psub);
+      PRINT("constexpr inttoptr", inttoptr_cexpr);
+      PRINT("constexpr ptrtoint", ptrtoint_cexpr);
+      PRINT("constexpr getelementptr_all", gep_cexpr);
+      PRINT("constexpr getelementptr_inbounds", gep_inb_cexpr);
+    } else {
+      PRINT("inttoptr", inttoptr_i + inttoptr_cexpr);
+      PRINT("ptrtoint", ptrtoint_i + ptrtoint_cexpr);
+      PRINT("getelementptr_all", gep_i + gep_cexpr);
+      PRINT("getelementptr_inbounds", gep_inb_i + gep_inb_cexpr);
+      PRINT("psub", psub);
+    }
+#undef PRINT
+  }
+};
+
+Stat totalstat;
+
+void processModule(StringRef filename, LLVMContext &context, bool distinguishConstAndInst) {
   ErrorOr<std::unique_ptr<MemoryBuffer>> fileOrErr = 
     MemoryBuffer::getFileOrSTDIN(filename);
   if (std::error_code ec = fileOrErr.getError()) {
     errs() << "Error opening input file: " << ec.message() << "\n";
-    return 2;
+    exit(2);
   }
   ErrorOr<Expected<std::unique_ptr<llvm::Module>>> moduleOrErr = 
     parseBitcodeFile(fileOrErr.get()->getMemBufferRef(), context);
   if (std::error_code ec = moduleOrErr.getError()) {
     errs() << "Error reading module : " << ec.message() << "\n";
-    return 3;
+    exit(3);
   }
 
   Expected<std::unique_ptr<llvm::Module>> moduleExpct = std::move(moduleOrErr.get());
@@ -138,7 +206,7 @@ int main(int argc, char *argv[]){
     m = std::move(moduleExpct.get());
   } else {
     errs() << "Error reading module\n";
-    return 3;
+    exit(3);
   }
   
   InstCountPass *ip = new InstCountPass();
@@ -148,24 +216,38 @@ int main(int argc, char *argv[]){
     ip->runOnFunction(f);
   }
   ip->finalize();
-  std::cout << "Total " << ip->TotalInsts << std::endl;
-  if (argc == 3 && argv[2][0] == 'y') {
-    // Distinguish constexpr and inst.
-    std::cout << "inst inttoptr " << ip->NumInst["inttoptr"] << std::endl;
-    std::cout << "inst ptrtoint " << ip->NumInst["ptrtoint"] << std::endl;
-    std::cout << "inst getelementptr_all " << ip->NumInst["getelementptr"] << std::endl;
-    std::cout << "inst getelementptr_inbounds " << ip->GEPInboundsCount << std::endl;
-    std::cout << "inst psub " << ip->PSubCount << std::endl;
-    std::cout << "constexpr inttoptr " << ip->NumConstExpr["inttoptr"] << std::endl;
-    std::cout << "constexpr ptrtoint " << ip->NumConstExpr["ptrtoint"] << std::endl;
-    std::cout << "constexpr getelementptr_all " << ip->NumConstExpr["getelementptr"] << std::endl;
-    std::cout << "constexpr getelementptr_inbounds " << ip->ConstExprGEPInboundsCount << std::endl;
-  } else {
-    std::cout << "inttoptr " << ip->NumInst["inttoptr"] + ip->NumConstExpr["inttoptr"] << std::endl;
-    std::cout << "ptrtoint " << ip->NumInst["ptrtoint"] + ip->NumConstExpr["ptrtoint"] << std::endl;
-    std::cout << "getelementptr_all " << ip->NumInst["getelementptr"] + ip->NumConstExpr["getelementptr"] << std::endl;
-    std::cout << "getelementptr_inbounds " << ip->GEPInboundsCount + ip->ConstExprGEPInboundsCount << std::endl;
-    std::cout << "psub " << ip->PSubCount << std::endl;
+  Stat news(ip);
+  std::cout << "---- " << filename.str() << " -----\n";
+  news.print(distinguishConstAndInst);
+  totalstat = totalstat + news;
+  delete ip;
+}
+
+int main(int argc, char *argv[]){
+  if (argc != 3) {
+    std::cerr << "Usage : " << argv[0] << " <distinguish-const-and-inst(y/n)> <dir>" << std::endl;
+    return 1;
   }
+
+  LLVMContext context;
+  bool distinguishConstAndInst = argv[1][0] == 'y';
+  
+  std::string rootdir = argv[2];
+  std::error_code ec;
+  int cnt = 0;
+  for (sys::fs::recursive_directory_iterator itr(rootdir, ec), iend;
+       itr != iend && !ec; itr.increment(ec)) {
+    std::string path = itr->path();
+    int len = path.length();
+    if (sys::fs::is_regular_file(path) && path.length() > 3 &&
+        path.substr(len - 3, 3) == ".bc") {
+      processModule(itr->path(), context, distinguishConstAndInst);
+      cnt++;
+    }
+  }
+
+  std::cout << "--- TOTAL " << cnt << " FILES ---" << "\n";
+  totalstat.print(distinguishConstAndInst);
+
   return 0;
 }
