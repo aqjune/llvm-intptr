@@ -2623,6 +2623,9 @@ bool llvm::FoldBranchToCommonDest(BranchInst *BI, unsigned BonusInstThreshold) {
     // Account for the cost of duplicating this instruction into each
     // predecessor. 
     NumBonusInsts += PredCount;
+    if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I))
+      if (II->getIntrinsicID() == Intrinsic::psub)
+        NumBonusInsts += 2 * PredCount;
     // Early exits once we reach the limit.
     if (NumBonusInsts > BonusInstThreshold)
       return false;
