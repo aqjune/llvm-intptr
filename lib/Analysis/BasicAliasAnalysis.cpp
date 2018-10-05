@@ -1191,9 +1191,9 @@ AliasResult BasicAAResult::aliasGEP(const GEPOperator *GEP1, uint64_t V1Size,
   // If the GEP's offset relative to its base is such that the base would
   // fall below the start of the object underlying V2, then the GEP and V2
   // cannot alias.
-  if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
-      isGEPBaseAtNegativeOffset(GEP1, DecompGEP1, DecompGEP2, V2Size))
-    return NoAlias;
+  //if (!GEP1MaxLookupReached && !GEP2MaxLookupReached &&
+  //    isGEPBaseAtNegativeOffset(GEP1, DecompGEP1, DecompGEP2, V2Size))
+  //  return NoAlias;
   // If we have two gep instructions with must-alias or not-alias'ing base
   // pointers, figure out if the indexes to the GEP tell us anything about the
   // derived pointer.
@@ -1593,19 +1593,19 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, uint64_t V1Size,
 
   if (O1 != O2) {
     // If V1/V2 point to two different objects, we know that we have no alias.
-    if (isIdentifiedObject(O1) && isIdentifiedObject(O2))
-      return NoAlias;
+    //if (isIdentifiedObject(O1) && isIdentifiedObject(O2))
+    //  return NoAlias;
 
     // Constant pointers can't alias with non-const isIdentifiedObject objects.
-    if ((isa<Constant>(O1) && isIdentifiedObject(O2) && !isa<Constant>(O2)) ||
-        (isa<Constant>(O2) && isIdentifiedObject(O1) && !isa<Constant>(O1)))
-      return NoAlias;
+    //if ((isa<Constant>(O1) && isIdentifiedObject(O2) && !isa<Constant>(O2)) ||
+    //    (isa<Constant>(O2) && isIdentifiedObject(O1) && !isa<Constant>(O1)))
+    //  return NoAlias;
 
     // Function arguments can't alias with things that are known to be
     // unambigously identified at the function level.
-    if ((isa<Argument>(O1) && isIdentifiedFunctionLocal(O2)) ||
-        (isa<Argument>(O2) && isIdentifiedFunctionLocal(O1)))
-      return NoAlias;
+    //if ((isa<Argument>(O1) && isIdentifiedFunctionLocal(O2)) ||
+    //    (isa<Argument>(O2) && isIdentifiedFunctionLocal(O1)))
+    //  return NoAlias;
 
     // If one pointer is the result of a call/invoke or load and the other is a
     // non-escaping local object within the same function, then we know the
@@ -1616,19 +1616,19 @@ AliasResult BasicAAResult::aliasCheck(const Value *V1, uint64_t V1Size,
     // temporary store the nocapture argument's value in a temporary memory
     // location if that memory location doesn't escape. Or it may pass a
     // nocapture value to other functions as long as they don't capture it.
-    if (isEscapeSource(O1) && isNonEscapingLocalObject(O2))
-      return NoAlias;
-    if (isEscapeSource(O2) && isNonEscapingLocalObject(O1))
-      return NoAlias;
+    //if (isEscapeSource(O1) && isNonEscapingLocalObject(O2))
+    //  return NoAlias;
+    //if (isEscapeSource(O2) && isNonEscapingLocalObject(O1))
+    //  return NoAlias;
   }
 
   // If the size of one access is larger than the entire object on the other
   // side, then we know such behavior is undefined and can assume no alias.
-  if ((V1Size != MemoryLocation::UnknownSize &&
-       isObjectSmallerThan(O2, V1Size, DL, TLI)) ||
-      (V2Size != MemoryLocation::UnknownSize &&
-       isObjectSmallerThan(O1, V2Size, DL, TLI)))
-    return NoAlias;
+  //if ((V1Size != MemoryLocation::UnknownSize &&
+  //     isObjectSmallerThan(O2, V1Size, DL, TLI)) ||
+  //    (V2Size != MemoryLocation::UnknownSize &&
+  //     isObjectSmallerThan(O1, V2Size, DL, TLI)))
+  //  return NoAlias;
 
   // Check the cache before climbing up use-def chains. This also terminates
   // otherwise infinitely recursive queries.
