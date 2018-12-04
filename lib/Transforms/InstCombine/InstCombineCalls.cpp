@@ -4013,6 +4013,31 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     }
     break;
   }
+
+  case Intrinsic::psub: {
+    Value *Op1 = II->getArgOperand(0);
+    Value *Op2 = II->getArgOperand(1);
+    if (Value *Res = OptimizePointerDifference(Op1, Op2, II->getType())) {
+      return replaceInstUsesWith(*II, Res);
+    }
+    //   psub(inttoptr(i1), p2)
+    // =>
+    //   sub (ptrtoint(inttoptr i1), ptrtoint(p2))
+    // Note that ptrtoint(inttoptr i1) can be optimized to i1.
+    if (Operator::getOpcode(Op1) == Instruction::IntToPtr ||
+        Operator::getOpcode(Op2) == Instruction::IntToPtr ||
+        isa<ConstantPointerNull>(Op1) || isa<ConstantPointerNull>(Op2)) {
+      Type *Op1Ty = Op1->getType();
+      IntegerType *ITy = IntegerType::get(Op1->getContext(),
+                                          DL.getPointerTypeSizeInBits(Op1Ty));
+      Value *I1 = Builder.CreatePtrToInt(Op1, ITy);
+      Value *I2 = Builder.CreatePtrToInt(Op2, ITy);
+      Value *Sub = Builder.CreateSub(I1, I2);
+      Value *Cast = Builder.CreateIntCast(Sub, II->getType(), true, II->getName());
+      return replaceInstUsesWith(*II, Cast);
+    }
+    break;
+  }
   }
   return visitCallSite(II);
 }

@@ -2019,10 +2019,13 @@ public:
   Value *CreatePtrDiff(Value *LHS, Value *RHS, const Twine &Name = "") {
     assert(LHS->getType() == RHS->getType() &&
            "Pointer subtraction operand types must match!");
-    auto *ArgType = cast<PointerType>(LHS->getType());
-    Value *LHS_int = CreatePtrToInt(LHS, Type::getInt64Ty(Context));
-    Value *RHS_int = CreatePtrToInt(RHS, Type::getInt64Ty(Context));
-    Value *Difference = CreateSub(LHS_int, RHS_int);
+    PointerType *ArgType = cast<PointerType>(LHS->getType());
+    Type *psubTys[] = { Type::getInt64Ty(Context), ArgType, ArgType };
+    Value *psubArgs[] = { LHS, RHS };
+    Module *M = BB->getParent()->getParent();
+    Value *Difference = CreateCall(Intrinsic::getDeclaration(M,
+                  llvm::Intrinsic::psub, ArrayRef<llvm::Type *>(psubTys, 3)),
+               psubArgs);
     return CreateExactSDiv(Difference,
                            ConstantExpr::getSizeOf(ArgType->getElementType()),
                            Name);
