@@ -4013,6 +4013,19 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     }
     break;
   }
+
+  case Intrinsic::psub: {
+    Value *Op1 = II->getArgOperand(0);
+    Value *Op2 = II->getArgOperand(1);
+    if (Value *Res = OptimizePointerDifference(Op1, Op2, II->getType())) {
+      return replaceInstUsesWith(*II, Res);
+    }
+    if (isa<ConstantPointerNull>(Op2)) {
+      Value *IOp1 = Builder.CreatePtrToInt(Op1, II->getType());
+      return replaceInstUsesWith(*II, IOp1);
+    }
+    break;
+  }
   }
   return visitCallSite(II);
 }

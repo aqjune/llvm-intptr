@@ -5078,6 +5078,10 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
     // TODO: maxnum(nnan ninf x, -flt_max) -> x
     break;
   }
+  case Intrinsic::psub:
+    if (Constant *Result = computePointerDifference(Q.DL, Op0, Op1))
+      return ConstantExpr::getIntegerCast(Result, F->getReturnType(), true);
+    break;
   default:
     break;
   }

@@ -16066,6 +16066,42 @@ a constant.
 On the other hand, if constant folding is not run, it will never
 evaluate to true, even in simple cases.
 
+'``llvm.psub``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare iN @llvm.psub.iN.pty.pty(pty, pty) nounwind readnone speculatable
+
+Overview:
+"""""""""
+
+The '``llvm.psub(p1, p2)``' intrinsic returns the result of subtraction
+of two pointers `p1 - p2` in bytes.
+
+Arguments:
+""""""""""
+The two arguments are pointers of the same type to subtract.
+The return value is the result of subtraction.
+
+Semantics:
+""""""""""
+If p1 and p2 point to different objects(global variable, alloca, etc)
+and neither of them is based on a pointer casted from an integer,
+``llvm.psub(p1, p2)`` returns poison. Otherwise, the result is equivalent to
+``sub (ptrtoint p1 to iN) (ptrtoint p2 to iN)``.
+``null`` is regarded as a pointer casted from an integer because
+it is equivalent to ``inttoptr 0``.
+Therefore, ``llvm.psub(p1, null)`` is equivalent to
+``ptrtoint p1``.
+
+The goal of this intrinsics is to allow more aggressive escape analysis on
+pointers. If a pointer p is only used at ``llvm.psub``, it is valid to assume
+that p is never escaped.
+
 Stack Map Intrinsics
 --------------------
 

@@ -989,6 +989,9 @@ def int_clear_cache : Intrinsic<[], [llvm_ptr_ty, llvm_ptr_ty],
 // Intrinsic to detect whether its argument is a constant.
 def int_is_constant : Intrinsic<[llvm_i1_ty], [llvm_any_ty], [IntrNoMem], "llvm.is.constant">;
 
+let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
+def int_psub : Intrinsic<[llvm_anyint_ty], [llvm_anyptr_ty, llvm_anyptr_ty]>;
+}
 
 //===-------------------------- Masked Intrinsics -------------------------===//
 //
