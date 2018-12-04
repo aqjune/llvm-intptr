@@ -6337,6 +6337,16 @@ SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I, unsigned Intrinsic) {
     // MachineFunction in SelectionDAGISel::PrepareEHLandingPad. We can safely
     // delete it now.
     return nullptr;
+  case Intrinsic::psub:
+    // pointer to integer casting
+    EVT DestVT = DAG.getTargetLoweringInfo().getValueType(DAG.getDataLayout(),
+                                                          I.getType());
+    SDValue Op1 = DAG.getZExtOrTrunc(getValue(I.getArgOperand(0)), getCurSDLoc(), DestVT);
+    SDValue Op2 = DAG.getZExtOrTrunc(getValue(I.getArgOperand(1)), getCurSDLoc(), DestVT);
+    SDValue BinNodeValue = DAG.getNode(ISD::SUB, getCurSDLoc(), Op1.getValueType(),
+                                       Op1, Op2);
+    setValue(&I, BinNodeValue);
+    return nullptr;
   }
 }
 
