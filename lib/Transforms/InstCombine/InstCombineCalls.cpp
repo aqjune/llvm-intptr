@@ -3722,6 +3722,10 @@ Instruction *InstCombiner::visitCallInst(CallInst &CI) {
     if (Value *Res = OptimizePointerDifference(Op1, Op2, II->getType())) {
       return replaceInstUsesWith(*II, Res);
     }
+    if (isa<ConstantPointerNull>(Op2)) {
+      Value *IOp1 = Builder.CreatePtrToInt(Op1, II->getType());
+      return replaceInstUsesWith(*II, IOp1);
+    }
     break;
   }
   }
